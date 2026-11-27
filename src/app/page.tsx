@@ -214,22 +214,46 @@ export default function KnowflowApp() {
   };
 
   const handlePasteNotes = async (title: string, text: string, folderId: string) => {
-    const res = await fetch('/api/ingest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, text, folderId })
-    });
-    const data = await res.json();
-    if (res.ok && data.documents) {
-      await applyIngestResult({
-        documents: data.documents,
-        concepts: data.concepts || [],
-        claims: data.claims || []
-      });
-      showToast(`Saved "${title}" into Library!`);
-    } else {
-      showToast(data.error || 'Could not save notes.');
+    const cleanText = text.replace(/\s+/g, ' ').trim();
+    if (cleanText.length < 10) {
+      showToast('Please paste a bit more text.');
+      return;
     }
+
+    const chunkSize = 1400;
+    const count = Math.min(20, Math.max(1, Math.ceil(cleanText.length / chunkSize)));
+    const excerpts = Array.from({ length: count }, (_, i) => {
+      const snippet = cleanText.slice(i * chunkSize, (i + 1) * chunkSize).trim();
+      const heading = snippet.split(/[.!?]/)[0]?.slice(0, 52) || `Part ${i + 1}`;
+      return {
+        id: `ex-paste-${Date.now()}-${i + 1}`,
+        page: i + 1,
+        heading,
+        text: snippet
+      };
+    });
+
+    const docSource = {
+      id: `doc-paste-${Date.now()}`,
+      folderId: folderId || 'folder-default',
+      sourceType: 'pasted' as const,
+      title: title.slice(0, 200),
+      authors: 'Pasted Notes',
+      year: new Date().getFullYear(),
+      abstract: cleanText.slice(0, 320),
+      pageCount: count,
+      fileSize: `${Math.max(1, Math.round(cleanText.length / 1024))} KB`,
+      uploadDate: new Date().toISOString().split('T')[0],
+      keyStance: cleanText.split(/[.!?]/)[0]?.slice(0, 160) || title,
+      excerpts
+    };
+
+    await applyIngestResult({
+      documents: [docSource],
+      concepts: [],
+      claims: []
+    });
+    showToast(`Saved "${title}" into Library!`);
   };
 
   const handleDeleteDocument = async (documentId: string) => {
@@ -350,22 +374,22 @@ export default function KnowflowApp() {
   // Google Sign-In Gate when Firebase is configured and user is signed out
   if (firebaseConfigured && !user) {
     return (
-      <div className="min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-center p-4">
-        <div className="max-w-sm w-full bg-white border border-[#E2E8F0] rounded-3xl p-8 shadow-xs text-center space-y-6">
-          <div className="w-11 h-11 rounded-2xl bg-[#635BDB] text-white flex items-center justify-center mx-auto shadow-xs">
-            <Brain size={22} />
+      <div className="min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-center p-5">
+        <div className="animate-fade-up max-w-md w-full bg-white border border-[#E2E8F0] rounded-3xl p-10 shadow-sm text-center space-y-7">
+          <div className="w-14 h-14 rounded-2xl bg-[#635BDB] text-white flex items-center justify-center mx-auto shadow-xs">
+            <Brain size={28} />
           </div>
 
-          <div className="space-y-1.5">
-            <h1 className="text-xl font-semibold text-[#0F172A] tracking-tight">KNOWFLOW</h1>
-            <p className="text-xs text-[#64748B]">
-              Sign in with Google to save your folders, PDFs, and learning progress.
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-[#0F172A] tracking-tight">KNOWFLOW</h1>
+            <p className="text-sm text-[#64748B] leading-relaxed">
+              Sign in with Google to save your folders, PDFs, and 5-stage learning progress.
             </p>
           </div>
 
           {authError && (
-            <div className="p-3 rounded-xl bg-[#FEF2F2] border border-[#FEE2E2] text-xs text-[#E05252] text-left flex items-start gap-2">
-              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-xl bg-[#FEF2F2] border border-[#FEE2E2] text-xs text-[#E05252] text-left flex items-start gap-2">
+              <AlertCircle size={15} className="shrink-0 mt-0.5" />
               <span>{authError}</span>
             </div>
           )}
@@ -373,7 +397,7 @@ export default function KnowflowApp() {
           <button
             onClick={handleGoogleSignIn}
             disabled={isSigningIn}
-            className="w-full py-2.5 px-4 rounded-full bg-white hover:bg-[#F8FAFC] border border-[#CBD5E1] text-sm font-medium text-[#0F172A] shadow-2xs transition flex items-center justify-center gap-2.5 disabled:opacity-50"
+            className="w-full py-3.5 px-5 rounded-full bg-white hover:bg-[#F8FAFC] border border-[#CBD5E1] text-base font-semibold text-[#0F172A] shadow-2xs transition flex items-center justify-center gap-3 disabled:opacity-50"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
               <path

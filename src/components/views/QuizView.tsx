@@ -124,22 +124,24 @@ export default function QuizView({
   const correctCount = scopedQuestions.filter(q => checkedState[q.id] === 'correct').length;
 
   return (
-    <div className="min-h-screen bg-[#FFFFFF] text-[#0F172A] flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-[#F5F7FF] via-[#FFFFFF] to-[#F3FAFF] text-[#0F172A] flex flex-col">
       {/* Minimal Header */}
-      <header className="h-14 px-4 border-b border-[#F1F5F9] flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <header className="h-16 px-5 border-b border-[#E6EAF5]/80 bg-white/80 backdrop-blur-md flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onOpenSidebar}
-            className="p-2 rounded-xl hover:bg-[#F8FAFC] text-[#475569] transition"
+            className="p-2.5 rounded-full hover:bg-[#EEF2FF] text-[#475569] transition"
             aria-label="Open sidebar"
           >
-            <Menu size={18} />
+            <Menu size={20} />
           </button>
-          <h1 className="text-base font-semibold text-[#0F172A] shrink-0">Quiz</h1>
+          <span className="text-lg font-bold bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] bg-clip-text text-transparent tracking-tight shrink-0">
+            KNOWFLOW
+          </span>
 
           {/* Context Document Selector */}
-          <div className="flex items-center gap-1.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-full px-3 py-1 text-xs max-w-[260px]">
-            <FolderOpen size={13} className="text-[#635BDB] shrink-0" />
+          <div className="flex items-center gap-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-full px-3.5 py-1.5 text-sm max-w-[260px]">
+            <FolderOpen size={15} className="text-[#635BDB] shrink-0" />
             {workspace.documents.length > 0 ? (
               <select
                 value={activeDoc?.id || ''}
@@ -150,7 +152,7 @@ export default function QuizView({
                   setCheckedState({});
                   setSpacedItems([]);
                 }}
-                className="bg-transparent text-xs font-medium text-[#0F172A] truncate focus:outline-hidden cursor-pointer w-full"
+                className="bg-transparent text-sm font-medium text-[#0F172A] truncate focus:outline-hidden cursor-pointer w-full"
               >
                 {workspace.documents.map(d => (
                   <option key={d.id} value={d.id}>
@@ -159,16 +161,16 @@ export default function QuizView({
                 ))}
               </select>
             ) : (
-              <span className="text-xs text-[#64748B] truncate">No documents yet</span>
+              <span className="text-sm text-[#64748B] truncate">No documents yet</span>
             )}
           </div>
         </div>
 
         {/* Mode Switch */}
-        <div className="flex items-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-full p-0.5 text-xs">
+        <div className="flex items-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-full p-1 text-sm">
           <button
             onClick={() => setQuizTab('active')}
-            className={`px-3 py-1 rounded-full font-medium transition ${
+            className={`px-4 py-1 rounded-full font-medium transition ${
               quizTab === 'active'
                 ? 'bg-white text-[#635BDB] shadow-2xs border border-[#E2E8F0]'
                 : 'text-[#64748B]'
@@ -181,7 +183,7 @@ export default function QuizView({
               setQuizTab('spaced');
               if (spacedItems.length === 0) loadSpacedRecall();
             }}
-            className={`px-3 py-1 rounded-full font-medium transition ${
+            className={`px-4 py-1 rounded-full font-medium transition ${
               quizTab === 'spaced'
                 ? 'bg-white text-[#635BDB] shadow-2xs border border-[#E2E8F0]'
                 : 'text-[#64748B]'
@@ -193,11 +195,20 @@ export default function QuizView({
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-3xl w-full mx-auto p-4 sm:p-6 space-y-5">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-5 py-8 sm:py-10 space-y-6">
+        <div className="animate-fade-up space-y-1.5">
+          <h1 className="text-3xl font-bold text-[#0F172A] tracking-tight">
+            Check Your Understanding
+          </h1>
+          <p className="text-sm text-[#64748B]">
+            Active recall with hints first, plus 1-day, 3-day, and 7-day application prompts.
+          </p>
+        </div>
+
         {workspace.documents.length === 0 ? (
-          <div className="p-10 text-center bg-[#F8FAFC] border border-dashed border-[#CBD5E1] rounded-2xl text-xs text-[#64748B] space-y-2">
-            <p className="font-medium text-[#0F172A]">Your Library has no study materials yet.</p>
-            <p>Upload a PDF or paste notes in Library to generate context-based quizzes.</p>
+          <div className="animate-fade-up-delay py-16 px-6 text-center bg-[#F8FAFC] border-2 border-dashed border-[#CBD5E1] rounded-3xl text-sm text-[#64748B] space-y-2">
+            <p className="text-base font-semibold text-[#0F172A]">Your Library has no study materials yet.</p>
+            <p>Upload a PDF or paste notes in Library to unlock tailored quizzes.</p>
           </div>
         ) : quizTab === 'active' ? (
           <>
@@ -211,8 +222,25 @@ export default function QuizView({
             </div>
 
             {scopedQuestions.length === 0 ? (
-              <div className="p-8 text-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl text-xs text-[#64748B]">
-                No quiz questions extracted for this document yet. Try the 1d · 3d · 7d Recall tab!
+              <div className="bg-white/90 border border-[#E6EAF5] rounded-3xl p-8 text-center space-y-4 shadow-xs">
+                <div className="space-y-1">
+                  <p className="text-base font-semibold text-[#0F172A]">
+                    Ready to quiz on {activeDoc?.title}
+                  </p>
+                  <p className="text-sm text-[#64748B]">
+                    Generate mixed recall & application questions directly from your saved material.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setQuizTab('spaced');
+                    if (spacedItems.length === 0) loadSpacedRecall();
+                  }}
+                  className="px-6 py-3 rounded-full bg-gradient-to-r from-[#635BDB] to-[#7C6FF6] text-white text-sm font-semibold shadow-sm transition inline-flex items-center gap-2"
+                >
+                  <Sparkles size={15} />
+                  <span>Generate Context Quiz</span>
+                </button>
               </div>
             ) : (
               <div className="space-y-4">

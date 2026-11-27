@@ -31,7 +31,9 @@ import {
   EyeOff,
   Upload,
   ClipboardPaste,
-  Menu
+  Menu,
+  AtSign,
+  X
 } from 'lucide-react';
 
 interface AskAIViewProps {
@@ -79,6 +81,11 @@ export default function AskAIView({
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
+
+  // @ mention picker for calling Library folders/files in chat
+  const [showMentionMenu, setShowMentionMenu] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Attach / Paste popover
   const [showAttachMenu, setShowAttachMenu] = useState(false);
@@ -268,27 +275,27 @@ export default function AskAIView({
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#FFFFFF] text-[#0F172A]">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-[#F5F7FF] via-[#FFFFFF] to-[#F3FAFF] text-[#0F172A]">
       {/* Minimal ChatGPT-style Top Bar */}
-      <header className="shrink-0 h-14 px-4 border-b border-[#F1F5F9] flex items-center justify-between gap-3 bg-white/95 backdrop-blur-xs">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <header className="shrink-0 h-16 px-5 border-b border-[#E6EAF5]/80 flex items-center justify-between gap-3 bg-white/80 backdrop-blur-md">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onOpenSidebar}
-            className="p-2 rounded-xl hover:bg-[#F8FAFC] text-[#475569] transition"
+            className="p-2.5 rounded-xl hover:bg-[#F8FAFC] text-[#475569] transition"
             title="Open sidebar (or drag from left)"
             aria-label="Open sidebar"
           >
-            <Menu size={18} />
+            <Menu size={20} />
           </button>
 
           {/* Clean Mode Pill */}
-          <div className="hidden sm:flex items-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-full p-0.5 text-xs">
+          <div className="hidden sm:flex items-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-full p-1 text-sm">
             <button
               onClick={() => {
                 setTutorMode('5-stage');
                 setShowStageMap(true);
               }}
-              className={`px-3 py-1 rounded-full font-medium transition ${
+              className={`px-3.5 py-1 rounded-full font-medium transition ${
                 tutorMode === '5-stage'
                   ? 'bg-white text-[#635BDB] shadow-2xs border border-[#E2E8F0]'
                   : 'text-[#64748B] hover:text-[#0F172A]'
@@ -301,7 +308,7 @@ export default function AskAIView({
                 setTutorMode('quick');
                 setShowStageMap(false);
               }}
-              className={`px-3 py-1 rounded-full font-medium transition ${
+              className={`px-3.5 py-1 rounded-full font-medium transition ${
                 tutorMode === 'quick'
                   ? 'bg-white text-[#635BDB] shadow-2xs border border-[#E2E8F0]'
                   : 'text-[#64748B] hover:text-[#0F172A]'
@@ -312,8 +319,8 @@ export default function AskAIView({
           </div>
 
           {/* Active Folder/Document Context Picker */}
-          <div className="flex items-center gap-1.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-full px-3 py-1 text-xs max-w-[260px] sm:max-w-xs">
-            <FolderOpen size={13} className="text-[#635BDB] shrink-0" />
+          <div className="flex items-center gap-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-full px-3.5 py-1.5 text-sm max-w-[280px] sm:max-w-xs">
+            <FolderOpen size={15} className="text-[#635BDB] shrink-0" />
             {workspace.documents.length > 0 ? (
               <select
                 value={activeDoc?.id || ''}
@@ -321,7 +328,7 @@ export default function AskAIView({
                   const doc = workspace.documents.find(d => d.id === e.target.value);
                   onSelectContext(doc?.folderId || null, doc?.id || null);
                 }}
-                className="bg-transparent text-xs font-medium text-[#0F172A] truncate focus:outline-hidden cursor-pointer w-full"
+                className="bg-transparent text-sm font-medium text-[#0F172A] truncate focus:outline-hidden cursor-pointer w-full"
                 title="Select context document from Library"
               >
                 {workspace.documents.map(doc => {
@@ -335,63 +342,63 @@ export default function AskAIView({
                 })}
               </select>
             ) : (
-              <span className="text-xs text-[#64748B] truncate">No document yet</span>
+              <span className="text-sm text-[#64748B] truncate">No document yet</span>
             )}
           </div>
         </div>
 
         {/* Right Stage Stepper */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => activeStage > 1 && handleStageChange((activeStage - 1) as TutorStage)}
             disabled={activeStage === 1 || isLoading}
-            className="px-2.5 py-1 rounded-full border border-[#E2E8F0] text-xs font-medium text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-35 transition flex items-center gap-1"
+            className="px-3.5 py-1.5 rounded-full border border-[#E2E8F0] text-sm font-medium text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-35 transition flex items-center gap-1"
           >
-            <ChevronLeft size={13} />
+            <ChevronLeft size={15} />
             <span className="hidden sm:inline">Prev</span>
           </button>
 
-          <span className="text-xs font-semibold text-[#475569] px-1.5 tabular-nums">
+          <span className="text-sm font-semibold text-[#475569] px-1.5 tabular-nums">
             {activeStage} / 5
           </span>
 
           <button
             onClick={() => activeStage < 5 && handleStageChange((activeStage + 1) as TutorStage)}
             disabled={activeStage === 5 || isLoading}
-            className="px-2.5 py-1 rounded-full bg-[#0F172A] hover:bg-[#1E293B] text-white text-xs font-medium disabled:opacity-35 transition flex items-center gap-1"
+            className="px-4 py-1.5 rounded-full bg-[#0F172A] hover:bg-[#1E293B] text-white text-sm font-medium disabled:opacity-35 transition flex items-center gap-1"
           >
             <span className="hidden sm:inline">Next</span>
-            <ChevronRight size={13} />
+            <ChevronRight size={15} />
           </button>
         </div>
       </header>
 
       {/* Main Centered Stream */}
-      <div className="flex-1 overflow-y-auto px-4 py-5">
-        <div className="max-w-3xl mx-auto space-y-5">
-          {/* Interactive 5-Stage Connected Flow Map (clean light-mode adaptation of user's visual diagram) */}
+      <div className="flex-1 overflow-y-auto px-5 py-7">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Interactive 5-Stage Connected Flow Map */}
           {showStageMap && (
-            <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl p-4 sm:p-5">
+            <div className="animate-fade-up bg-[#F8FAFC] border border-[#E2E8F0] rounded-3xl p-5 sm:p-6">
               {/* Top Row: Stages 1 -> 2 -> 3 */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 items-center">
                 {STAGES.slice(0, 3).map((st, idx) => {
                   const isActive = activeStage === st.id;
                   return (
-                    <div key={st.id} className="flex items-center gap-2">
+                    <div key={st.id} className="flex items-center gap-2.5">
                       <button
                         onClick={() => handleStageChange(st.id)}
-                        className={`flex-1 px-3 py-2.5 rounded-2xl border text-center transition ${
+                        className={`flex-1 px-4 py-3.5 rounded-2xl border text-center transition ${
                           isActive
                             ? 'bg-[#EEF2FF] border-[#635BDB] text-[#312E81] shadow-xs'
                             : 'bg-white border-[#E2E8F0] text-[#334155] hover:border-[#CBD5E1]'
                         }`}
                       >
-                        <div className="text-xs font-semibold">{st.title}</div>
-                        <div className="text-[10px] text-[#64748B] italic mt-0.5">{st.sub}</div>
+                        <div className="text-sm font-semibold">{st.title}</div>
+                        <div className="text-xs text-[#64748B] italic mt-0.5">{st.sub}</div>
                       </button>
                       {idx < 2 && (
                         <ChevronRight
-                          size={14}
+                          size={16}
                           className="hidden sm:block text-[#94A3B8] shrink-0"
                         />
                       )}
@@ -400,100 +407,100 @@ export default function AskAIView({
                 })}
               </div>
 
-              {/* Middle loop connector: Weak spots (Stage 5 -> 2) & Down arrow (Stage 3 -> 4) */}
-              <div className="hidden sm:flex items-center justify-between px-12 py-1.5 text-[10px] text-[#64748B]">
+              {/* Middle loop connector */}
+              <div className="hidden sm:flex items-center justify-between px-12 py-2 text-xs text-[#64748B]">
                 <div className="w-1/3" />
-                <div className="flex items-center gap-1 bg-white border border-[#E2E8F0] px-2.5 py-0.5 rounded-full text-[10px] font-medium text-[#635BDB]">
+                <div className="flex items-center gap-1 bg-white border border-[#E2E8F0] px-3 py-0.5 rounded-full text-xs font-medium text-[#635BDB]">
                   <span>↑ Weak spots</span>
                 </div>
                 <div className="w-1/3 flex justify-center text-[#94A3B8]">↓</div>
               </div>
 
               {/* Bottom Row: Stage 5 <- Stage 4 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2 sm:mt-0 sm:px-10 items-center">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-2 sm:mt-0 sm:px-12 items-center">
                 <button
                   onClick={() => handleStageChange(5)}
-                  className={`px-3 py-2.5 rounded-2xl border text-center transition order-2 sm:order-1 ${
+                  className={`px-4 py-3.5 rounded-2xl border text-center transition order-2 sm:order-1 ${
                     activeStage === 5
                       ? 'bg-[#EEF2FF] border-[#635BDB] text-[#312E81] shadow-xs'
                       : 'bg-white border-[#E2E8F0] text-[#334155] hover:border-[#CBD5E1]'
                   }`}
                 >
-                  <div className="text-xs font-semibold">{STAGES[4].title}</div>
-                  <div className="text-[10px] text-[#64748B] italic mt-0.5">{STAGES[4].sub}</div>
+                  <div className="text-sm font-semibold">{STAGES[4].title}</div>
+                  <div className="text-xs text-[#64748B] italic mt-0.5">{STAGES[4].sub}</div>
                 </button>
 
-                <div className="flex items-center gap-2 order-1 sm:order-2">
+                <div className="flex items-center gap-2.5 order-1 sm:order-2">
                   <ChevronLeft
-                    size={14}
+                    size={16}
                     className="hidden sm:block text-[#94A3B8] shrink-0"
                   />
                   <button
                     onClick={() => handleStageChange(4)}
-                    className={`flex-1 px-3 py-2.5 rounded-2xl border text-center transition ${
+                    className={`flex-1 px-4 py-3.5 rounded-2xl border text-center transition ${
                       activeStage === 4
                         ? 'bg-[#EEF2FF] border-[#635BDB] text-[#312E81] shadow-xs'
                         : 'bg-white border-[#E2E8F0] text-[#334155] hover:border-[#CBD5E1]'
                     }`}
                   >
-                    <div className="text-xs font-semibold">{STAGES[3].title}</div>
-                    <div className="text-[10px] text-[#64748B] italic mt-0.5">{STAGES[3].sub}</div>
+                    <div className="text-sm font-semibold">{STAGES[3].title}</div>
+                    <div className="text-xs text-[#64748B] italic mt-0.5">{STAGES[3].sub}</div>
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Empty Welcome State (ChatGPT-clean, zero fake data) */}
+          {/* Empty Welcome State (Fade-in hero title + big inviting buttons) */}
           {messages.length === 0 && !isLoading && (
-            <div className="py-10 text-center space-y-5">
-              <div className="space-y-1.5">
-                <h2 className="text-2xl font-semibold text-[#0F172A] tracking-tight">
-                  What are we learning today?
-                </h2>
-                <p className="text-xs text-[#64748B]">
+            <div className="py-10 text-center space-y-6">
+              <div className="animate-fade-up-delay space-y-2">
+                <h1 className="text-3xl sm:text-4xl font-bold text-[#0F172A] tracking-tight">
+                  What do you want to master today?
+                </h1>
+                <p className="text-sm sm:text-base text-[#64748B] max-w-xl mx-auto">
                   {activeDoc ? (
                     <>
-                      Using context: <span className="font-medium text-[#0F172A]">{activeDoc.title}</span>
+                      Active context: <span className="font-semibold text-[#0F172A]">{activeDoc.title}</span>
                     </>
                   ) : (
-                    'Upload a PDF, paste study notes, or ask any topic below.'
+                    'Upload a PDF, paste study notes, or ask any topic below to start the 5-stage flow.'
                   )}
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center justify-center gap-2">
+              <div className="animate-fade-up-slow flex flex-wrap items-center justify-center gap-3">
                 {activeDoc && (
                   <button
                     onClick={() => sendToTutor(`Start learning "${activeDoc.title}" with a Story Hook`, 1)}
-                    className="px-4 py-2 rounded-full bg-[#635BDB] hover:bg-[#5249C9] text-white text-xs font-medium transition flex items-center gap-1.5 shadow-xs"
+                    className="px-6 py-3 rounded-full bg-gradient-to-r from-[#635BDB] to-[#7C6FF6] hover:from-[#544BC9] hover:to-[#6B5CE8] text-white text-sm font-semibold transition flex items-center gap-2 shadow-sm"
                   >
-                    <Sparkles size={13} />
+                    <Sparkles size={16} />
                     <span>Start 1. Story Hook</span>
                   </button>
                 )}
 
                 <button
                   onClick={() => setShowPasteModal(true)}
-                  className="px-4 py-2 rounded-full bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E2E8F0] text-[#0F172A] text-xs font-medium transition flex items-center gap-1.5"
+                  className="px-5 py-3 rounded-full bg-white hover:bg-[#F5F7FF] border border-[#E2E8F0] text-[#0F172A] text-sm font-semibold transition flex items-center gap-2 shadow-2xs"
                 >
-                  <ClipboardPaste size={13} className="text-[#635BDB]" />
+                  <ClipboardPaste size={16} className="text-[#635BDB]" />
                   <span>Paste Notes</span>
                 </button>
 
                 <button
                   onClick={onOpenUpload}
-                  className="px-4 py-2 rounded-full bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E2E8F0] text-[#0F172A] text-xs font-medium transition flex items-center gap-1.5"
+                  className="px-5 py-3 rounded-full bg-white hover:bg-[#F5F7FF] border border-[#E2E8F0] text-[#0F172A] text-sm font-semibold transition flex items-center gap-2 shadow-2xs"
                 >
-                  <Upload size={13} className="text-[#635BDB]" />
+                  <Upload size={16} className="text-[#635BDB]" />
                   <span>Upload PDF</span>
                 </button>
 
                 <button
                   onClick={() => onNavigateSection('library')}
-                  className="px-4 py-2 rounded-full bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E2E8F0] text-[#0F172A] text-xs font-medium transition flex items-center gap-1.5"
+                  className="px-5 py-3 rounded-full bg-white hover:bg-[#F5F7FF] border border-[#E2E8F0] text-[#0F172A] text-sm font-semibold transition flex items-center gap-2 shadow-2xs"
                 >
-                  <FolderOpen size={13} className="text-[#635BDB]" />
+                  <FolderOpen size={16} className="text-[#635BDB]" />
                   <span>Open Library</span>
                 </button>
               </div>
@@ -518,7 +525,7 @@ export default function AskAIView({
 
             return (
               <div key={msg.id} className="space-y-3">
-                <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 shadow-2xs space-y-4">
+                <div className="bg-white/95 border border-[#E6EAF5] rounded-3xl p-6 shadow-sm space-y-4">
                   {/* Card Header + Audio & Copy icons */}
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -812,20 +819,96 @@ export default function AskAIView({
         </div>
       </div>
 
-      {/* Bottom ChatGPT-style Composer */}
-      <div className="shrink-0 px-4 pb-4 pt-2 bg-white border-t border-[#F1F5F9]">
-        <div className="max-w-3xl mx-auto relative">
+      {/* Bottom ChatGPT-style Composer with @ Mention Calling */}
+      <div className="shrink-0 px-5 pb-5 pt-2.5 bg-white/85 backdrop-blur-md border-t border-[#E6EAF5]/80">
+        <div className="max-w-4xl mx-auto relative">
+          {/* @ Mention Library Picker */}
+          {showMentionMenu && (
+            <div className="absolute bottom-24 left-0 right-0 sm:right-auto sm:w-96 bg-white border border-[#E6EAF5] rounded-3xl shadow-xl p-3 z-30 space-y-2">
+              <div className="flex items-center justify-between px-2">
+                <span className="text-xs font-semibold text-[#635BDB] flex items-center gap-1.5">
+                  <AtSign size={13} />
+                  <span>Call from Library</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowMentionMenu(false)}
+                  className="p-1 rounded-full text-[#94A3B8] hover:text-[#0F172A]"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+
+              <div className="max-h-56 overflow-y-auto space-y-1">
+                {workspace.documents.length === 0 && workspace.folders.length === 0 && (
+                  <div className="p-3 text-xs text-[#64748B] text-center">
+                    No files in Library yet. Upload a PDF or paste notes first.
+                  </div>
+                )}
+
+                {workspace.documents
+                  .filter(d => d.title.toLowerCase().includes(mentionQuery.toLowerCase()))
+                  .map(doc => (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      onClick={() => {
+                        onSelectContext(doc.folderId, doc.id);
+                        setInput(prev => prev.replace(/@[^\s]*$/, '').trimStart());
+                        setShowMentionMenu(false);
+                        setMentionQuery('');
+                        textareaRef.current?.focus();
+                      }}
+                      className="w-full text-left px-3 py-2.5 rounded-2xl hover:bg-[#EEF2FF] transition flex items-center gap-2.5"
+                    >
+                      <FileText size={15} className="text-[#635BDB] shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-[#0F172A] truncate">
+                          {doc.title}
+                        </div>
+                        <div className="text-[11px] text-[#64748B]">
+                          {doc.pageCount} page{doc.pageCount > 1 ? 's' : ''} · {doc.fileSize}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+
+                {workspace.folders
+                  .filter(f => f.name.toLowerCase().includes(mentionQuery.toLowerCase()))
+                  .map(folder => (
+                    <button
+                      key={folder.id}
+                      type="button"
+                      onClick={() => {
+                        onSelectContext(folder.id, null);
+                        setInput(prev => prev.replace(/@[^\s]*$/, '').trimStart());
+                        setShowMentionMenu(false);
+                        setMentionQuery('');
+                        textareaRef.current?.focus();
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-2xl hover:bg-[#F5F7FF] transition flex items-center gap-2.5"
+                    >
+                      <FolderOpen size={15} className="text-[#7C3AED] shrink-0" />
+                      <span className="text-sm font-medium text-[#0F172A] truncate">
+                        Folder: {folder.name}
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {/* Quick Attach Popover */}
           {showAttachMenu && (
-            <div className="absolute bottom-16 left-0 bg-white border border-[#E2E8F0] rounded-2xl shadow-lg p-1.5 w-48 z-20 space-y-1">
+            <div className="absolute bottom-24 left-0 bg-white border border-[#E6EAF5] rounded-3xl shadow-xl p-2.5 w-60 z-20 space-y-1">
               <button
                 onClick={() => {
                   setShowAttachMenu(false);
                   onOpenUpload();
                 }}
-                className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#F8FAFC] text-xs font-medium text-[#0F172A] flex items-center gap-2"
+                className="w-full text-left px-4 py-2.5 rounded-2xl hover:bg-[#EEF2FF] text-sm font-medium text-[#0F172A] flex items-center gap-2.5 transition"
               >
-                <Upload size={14} className="text-[#635BDB]" />
+                <Upload size={16} className="text-[#635BDB]" />
                 <span>Upload PDF</span>
               </button>
               <button
@@ -833,60 +916,112 @@ export default function AskAIView({
                   setShowAttachMenu(false);
                   setShowPasteModal(true);
                 }}
-                className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#F8FAFC] text-xs font-medium text-[#0F172A] flex items-center gap-2"
+                className="w-full text-left px-4 py-2.5 rounded-2xl hover:bg-[#EEF2FF] text-sm font-medium text-[#0F172A] flex items-center gap-2.5 transition"
               >
-                <ClipboardPaste size={14} className="text-[#635BDB]" />
+                <ClipboardPaste size={16} className="text-[#635BDB]" />
                 <span>Paste Study Notes</span>
               </button>
             </div>
           )}
 
-          <div className="flex items-end gap-2 bg-[#F8FAFC] border border-[#E2E8F0] focus-within:border-[#635BDB] rounded-3xl px-3 py-2 shadow-2xs transition">
+          {/* Active @ Context Pill above/inside composer */}
+          {activeDoc && (
+            <div className="mb-2 flex items-center gap-2 px-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EEF2FF] border border-[#C7D2FE] text-xs font-semibold text-[#4F46E5]">
+                <AtSign size={12} />
+                <span className="max-w-[260px] truncate">{activeDoc.title}</span>
+                <button
+                  type="button"
+                  onClick={() => onSelectContext(workspace.activeFolderId, null)}
+                  className="hover:text-[#0F172A] ml-0.5"
+                  title="Clear active file context"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-end gap-2 bg-[#F8FAFF] border border-[#E2E8F0] focus-within:border-[#635BDB] rounded-full px-3.5 py-2 shadow-sm transition">
             <button
-              onClick={() => setShowAttachMenu(prev => !prev)}
-              className="p-2 rounded-full hover:bg-white text-[#475569] transition shrink-0"
+              onClick={() => {
+                setShowMentionMenu(false);
+                setShowAttachMenu(prev => !prev);
+              }}
+              className="p-2.5 rounded-full hover:bg-white text-[#475569] transition shrink-0"
               title="Upload PDF or Paste notes"
             >
-              <Plus size={18} />
+              <Plus size={20} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowAttachMenu(false);
+                setMentionQuery('');
+                setShowMentionMenu(prev => !prev);
+              }}
+              className={`p-2.5 rounded-full transition shrink-0 ${
+                showMentionMenu ? 'bg-[#EEF2FF] text-[#635BDB]' : 'hover:bg-white text-[#475569]'
+              }`}
+              title="Type @ or click to call PDF/folder from Library"
+            >
+              <AtSign size={18} />
             </button>
 
             <textarea
+              ref={textareaRef}
               rows={1}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setInput(val);
+                const match = val.match(/@([^\s]*)$/);
+                if (match) {
+                  setMentionQuery(match[1] || '');
+                  setShowMentionMenu(true);
+                  setShowAttachMenu(false);
+                } else {
+                  setShowMentionMenu(false);
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
+                  setShowMentionMenu(false);
                   if (input.trim()) sendToTutor(input, activeStage);
                 }
               }}
               placeholder={
                 activeStage === 4
-                  ? 'Explain the concept back in your own words (or click Mic)...'
-                  : 'Ask anything, answer the prompt, or paste text...'
+                  ? 'Explain it back in your own words, or type @ to switch PDF...'
+                  : 'Type @ to call a PDF from Library, or ask anything...'
               }
-              className="flex-1 bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] resize-none py-2 px-1 focus:outline-hidden max-h-32"
+              className="flex-1 bg-transparent text-base text-[#0F172A] placeholder:text-[#94A3B8] resize-none py-2 px-1 focus:outline-hidden max-h-36"
             />
 
             <button
               onClick={toggleVoiceInput}
-              className={`p-2 rounded-full transition shrink-0 ${
+              className={`p-2.5 rounded-full transition shrink-0 ${
                 isListening
                   ? 'bg-[#FEF2F2] text-[#E05252]'
                   : 'hover:bg-white text-[#475569]'
               }`}
               title="Voice input (0 credits)"
             >
-              {isListening ? <MicOff size={17} /> : <Mic size={17} />}
+              {isListening ? <MicOff size={19} /> : <Mic size={19} />}
             </button>
 
             <button
-              onClick={() => sendToTutor(input || `Continue Stage ${activeStage}`, activeStage)}
+              onClick={() => {
+                setShowMentionMenu(false);
+                sendToTutor(input || `Continue Stage ${activeStage}`, activeStage);
+              }}
               disabled={isLoading}
-              className="p-2 rounded-full bg-[#635BDB] hover:bg-[#5249C9] disabled:opacity-40 text-white transition shrink-0"
+              className="p-2.5 rounded-full bg-gradient-to-r from-[#635BDB] to-[#7C6FF6] hover:from-[#544BC9] hover:to-[#6B5CE8] disabled:opacity-40 text-white transition shrink-0 shadow-xs"
               title="Send"
             >
-              <Send size={16} />
+              <Send size={18} />
             </button>
           </div>
         </div>
@@ -897,7 +1032,7 @@ export default function AskAIView({
         <div className="fixed inset-0 z-50 bg-slate-900/35 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handlePasteSubmit}
-            className="bg-white border border-[#E2E8F0] rounded-2xl max-w-lg w-full p-5 shadow-xl space-y-4"
+            className="animate-fade-up bg-white border border-[#E6EAF5] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4"
           >
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-[#0F172A]">

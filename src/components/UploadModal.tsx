@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, FileText, X, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { DocumentSource, Concept, EvidenceClaim } from '../types';
+import { parsePdfClientSide } from '../lib/clientPdf';
 
 export interface IngestResultPayload {
   documents: DocumentSource[];
@@ -17,10 +18,16 @@ interface UploadModalProps {
   activeFolderId?: string | null;
 }
 
-export default function UploadModal({ isOpen, onClose, onUploadSuccess, activeFolderId }: UploadModalProps) {
+export default function UploadModal({
+  isOpen,
+  onClose,
+  onUploadSuccess,
+  activeFolderId
+}: UploadModalProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [progressText, setProgressText] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,12 +59,12 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess, activeFo
 
   const addFiles = (newFiles: File[]) => {
     setErrorMessage('');
-    const validPdfs = newFiles.filter(f =>
-      f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf'
+    const validPdfs = newFiles.filter(
+      f => f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf'
     );
 
     if (validPdfs.length < newFiles.length) {
-      setErrorMessage('Some non-PDF files were omitted. Only PDF files are supported.');
+      setErrorMessage('Some non-PDF files were skipped. Only PDF files are supported.');
     }
 
     setFiles(prev => [...prev, ...validPdfs]);
@@ -70,168 +77,155 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess, activeFo
   const handleSubmit = async () => {
     if (files.length === 0) return;
 
-    setIsUploading(true);
+    setIsSaving(true);
     setErrorMessage('');
+    setProgressText('Saving to your Library...');
 
     try {
-      const formData = new FormData();
-      files.forEach(f => formData.append('files', f));
-      if (activeFolderId) {
-        formData.append('folderId', activeFolderId);
+      const targetFolder = activeFolderId || 'folder-default';
+      const savedDocs: DocumentSource[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        setProgressText(`Saving ${f.name}...`);
+        const doc = await parsePdfClientSide(f, targetFolder, (_pct, label) => {
+          setProgressText(`${f.name} · ${label}`);
+        });
+        savedDocs.push(doc);
       }
 
-      const res = await fetch('/api/ingest', {
-        method: 'POST',
-        body: formData,
+      await onUploadSuccess({
+        documents: savedDocs,
+        concepts: [],
+        claims: []
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to ingest documents');
-      }
-
-      const data = await res.json();
-      if (data.documents && data.documents.length > 0) {
-        await onUploadSuccess({
-          documents: data.documents,
-          concepts: data.concepts || [],
-          claims: data.claims || []
-        });
-        setFiles([]);
-        onClose();
-      }
+      setFiles([]);
+      setProgressText('');
+      onClose();
     } catch (err: any) {
-      console.error('Upload failed:', err);
-      setErrorMessage(err.message || 'Ingestion encountered an error.');
+      console.error('Save failed:', err);
+      setErrorMessage(err?.message || 'Could not save PDF to Library.');
     } finally {
-      setIsUploading(false);
+      setIsSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white border border-[#E8ECF2] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#E8ECF2]">
+    <div className="fixed inset-0 z-50 bg-slate-900/35 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="animate-fade-up bg-white border border-[#E6EAF5] rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5">
+        <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-[#172033]">
-              Multi-PDF Document Ingestion
-            </h3>
-            <p className="text-xs text-[#64748B]">
-              Upload multiple research papers or textbook PDFs to extract concepts & claims.
+            <h3 className="text-lg font-bold text-[#0F172A]">Save PDF to Library</h3>
+            <p className="text-xs text-[#64748B] mt-0.5">
+              Saves locally & to your Library folder—call it anytime in chat with <span className="font-semibold text-[#635BDB]">@</span>.
             </p>
           </div>
           <button
             onClick={onClose}
-            disabled={isUploading}
-            className="text-[#64748B] hover:text-[#172033] p-1 rounded-md"
+            className="p-2 rounded-full text-[#64748B] hover:text-[#0F172A] hover:bg-[#F5F7FF] transition"
           >
             <X size={18} />
           </button>
         </div>
-
-        {/* Dropzone */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf"
-          multiple
-          onChange={handleFileInputChange}
-          className="hidden"
-        />
 
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2 ${
+          className={`border-2 border-dashed rounded-3xl p-8 text-center cursor-pointer transition flex flex-col items-center justify-center gap-3 ${
             isDragging
-              ? 'border-[#635BDB] bg-[#EEEDFC]/40'
-              : 'border-[#CBD5E1] bg-[#F8FAFC] hover:border-[#635BDB] hover:bg-[#EEEDFC]/20'
+              ? 'border-[#635BDB] bg-[#EEF2FF]/70'
+              : 'border-[#CBD5E1] hover:border-[#635BDB] bg-gradient-to-b from-[#F8FAFF] to-[#FFFFFF]'
           }`}
         >
-          <div className="w-10 h-10 rounded-full bg-[#EEEDFC] text-[#635BDB] flex items-center justify-center">
-            <UploadCloud size={20} />
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileInputChange}
+            multiple
+            accept=".pdf,application/pdf"
+            className="hidden"
+          />
+
+          <div className="w-12 h-12 rounded-2xl bg-[#EEF2FF] text-[#635BDB] flex items-center justify-center">
+            <UploadCloud size={24} />
           </div>
+
           <div>
-            <span className="text-xs font-bold text-[#172033] block">
-              Click to select or drag and drop PDFs
-            </span>
-            <span className="text-[11px] text-[#64748B]">
-              Supports 100+ page papers • Up to 25 MB per file
-            </span>
+            <p className="text-sm font-semibold text-[#0F172A]">
+              Click to choose or drag PDFs here
+            </p>
+            <p className="text-xs text-[#64748B] mt-1">
+              Works with large lecture decks & textbooks · 0 AI credits used on save
+            </p>
           </div>
         </div>
 
-        {/* Selected Files List */}
         {files.length > 0 && (
-          <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] block">
-              Selected Files ({files.length})
+          <div className="space-y-2">
+            <span className="text-xs font-semibold text-[#64748B] block">
+              Selected ({files.length})
             </span>
-            {files.map((file, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between p-2.5 bg-[#F8FAFC] rounded-xl border border-[#E8ECF2] text-xs"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <FileText size={15} className="text-[#635BDB] shrink-0" />
-                  <span className="text-[#172033] truncate font-medium">{file.name}</span>
-                  <span className="text-[#64748B] text-[10px] shrink-0 font-mono">
-                    ({(file.size / (1024 * 1024)).toFixed(1)} MB)
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeFile(idx);
-                  }}
-                  disabled={isUploading}
-                  className="text-[#64748B] hover:text-[#E05252] p-1"
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {files.map((file, idx) => (
+                <div
+                  key={idx}
+                  className="px-4 py-2.5 rounded-2xl bg-[#F8FAFF] border border-[#E6EAF5] flex items-center justify-between text-xs"
                 >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-2.5 truncate">
+                    <FileText size={16} className="text-[#635BDB] shrink-0" />
+                    <span className="font-semibold text-[#0F172A] truncate">{file.name}</span>
+                    <span className="text-[#64748B] shrink-0">
+                      {(file.size / (1024 * 1024)).toFixed(1)} MB
+                    </span>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFile(idx);
+                    }}
+                    className="p-1 rounded-full text-[#94A3B8] hover:text-[#E05252]"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Error message */}
         {errorMessage && (
-          <div className="p-3 bg-[#FEF2F2] border border-[#FEE2E2] rounded-xl text-xs text-[#E05252] flex items-center gap-2">
+          <div className="p-3.5 rounded-2xl bg-[#FEF2F2] border border-[#FEE2E2] text-xs text-[#E05252] flex items-center gap-2">
             <AlertCircle size={15} className="shrink-0" />
             <span>{errorMessage}</span>
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E8ECF2]">
+        <div className="flex items-center justify-end gap-2.5 pt-1">
           <button
-            type="button"
             onClick={onClose}
-            disabled={isUploading}
-            className="px-4 py-2 bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E8ECF2] text-[#64748B] text-xs font-semibold rounded-xl transition"
+            disabled={isSaving}
+            className="px-5 py-2.5 rounded-full border border-[#E2E8F0] hover:bg-[#F8FAFC] text-sm font-medium text-[#64748B] transition"
           >
             Cancel
           </button>
 
           <button
-            type="button"
             onClick={handleSubmit}
-            disabled={files.length === 0 || isUploading}
-            className="px-5 py-2.5 bg-[#635BDB] hover:bg-[#5249C9] disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-2 transition"
+            disabled={files.length === 0 || isSaving}
+            className="px-6 py-2.5 rounded-full bg-gradient-to-r from-[#635BDB] to-[#7C6FF6] hover:from-[#544BC9] hover:to-[#6B5CE8] disabled:opacity-45 text-white text-sm font-semibold shadow-sm transition flex items-center gap-2"
           >
-            {isUploading ? (
+            {isSaving ? (
               <>
-                <RefreshCw size={14} className="animate-spin" />
-                <span>Extracting Concepts with AI...</span>
+                <RefreshCw size={15} className="animate-spin" />
+                <span>{progressText || 'Saving...'}</span>
               </>
             ) : (
               <>
-                <CheckCircle2 size={14} />
-                <span>Ingest & Internalize ({files.length})</span>
+                <CheckCircle2 size={15} />
+                <span>Save to Library</span>
               </>
             )}
           </button>

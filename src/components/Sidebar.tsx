@@ -110,44 +110,44 @@ export default function Sidebar({
         onPointerDown={handleSidebarPointerDown}
         onPointerMove={handleSidebarPointerMove}
         onPointerUp={() => (dragStartX.current = null)}
-        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#F8FAFC] border-r border-[#E2E8F0] flex flex-col transition-transform duration-200 ease-out shadow-xl ${
+        className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-[#F8FAFC] border-r border-[#E2E8F0] flex flex-col transition-transform duration-200 ease-out shadow-xl ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="h-14 px-4 border-b border-[#E2E8F0] bg-white flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#635BDB] text-white flex items-center justify-center">
-              <Brain size={16} />
+        <div className="h-16 px-5 border-b border-[#E2E8F0] bg-white flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#635BDB] text-white flex items-center justify-center">
+              <Brain size={18} />
             </div>
-            <span className="text-sm font-bold text-[#0F172A] tracking-tight">
+            <span className="text-base font-bold text-[#0F172A] tracking-tight">
               KNOWFLOW
             </span>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#64748B] hover:text-[#0F172A] hover:bg-[#F8FAFC] transition"
+            className="p-2 rounded-xl text-[#64748B] hover:text-[#0F172A] hover:bg-[#F8FAFC] transition"
             title="Close sidebar"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
-        <div className="p-3">
+        <div className="p-3.5">
           <button
             onClick={() => {
               onNewChat();
               onSelectSection('ask-ai');
               onClose();
             }}
-            className="w-full py-2 px-3 rounded-xl bg-white hover:bg-[#F1F5F9] border border-[#E2E8F0] text-xs font-semibold text-[#0F172A] flex items-center gap-2 shadow-2xs transition"
+            className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-[#F1F5F9] border border-[#E2E8F0] text-sm font-semibold text-[#0F172A] flex items-center gap-2.5 shadow-2xs transition"
           >
-            <Plus size={14} className="text-[#635BDB]" />
+            <Plus size={16} className="text-[#635BDB]" />
             <span>New Learning Chat</span>
           </button>
         </div>
 
-        <nav className="px-3 space-y-1">
+        <nav className="px-3.5 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
@@ -158,13 +158,13 @@ export default function Sidebar({
                   onSelectSection(item.id);
                   onClose();
                 }}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2.5 transition ${
+                className={`w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium flex items-center gap-3 transition ${
                   isActive
                     ? 'bg-[#EEF2FF] text-[#635BDB] font-semibold'
                     : 'text-[#475569] hover:bg-white hover:text-[#0F172A]'
                 }`}
               >
-                <Icon size={15} />
+                <Icon size={17} />
                 <span>{item.label}</span>
               </button>
             );

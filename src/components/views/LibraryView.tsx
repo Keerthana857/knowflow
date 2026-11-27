@@ -160,73 +160,85 @@ export default function LibraryView({
   const comparedDocs = documents.filter(d => compareIds.includes(d.id));
 
   return (
-    <div className="min-h-screen bg-[#FFFFFF] text-[#0F172A] flex flex-col">
-      {/* Minimal Header */}
-      <header className="h-14 px-4 border-b border-[#F1F5F9] flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
+    <div className="min-h-screen bg-gradient-to-br from-[#F5F7FF] via-[#FFFFFF] to-[#F3FAFF] text-[#0F172A] flex flex-col">
+      {/* Top Bar */}
+      <header className="h-16 px-5 border-b border-[#E6EAF5]/80 bg-white/80 backdrop-blur-md flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
           <button
             onClick={onOpenSidebar}
-            className="p-2 rounded-xl hover:bg-[#F8FAFC] text-[#475569] transition"
+            className="p-2.5 rounded-full hover:bg-[#EEF2FF] text-[#475569] transition"
             aria-label="Open sidebar"
           >
-            <Menu size={18} />
+            <Menu size={20} />
           </button>
-          <h1 className="text-base font-semibold text-[#0F172A]">Library</h1>
+          <span className="text-lg font-bold bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] bg-clip-text text-transparent tracking-tight">
+            KNOWFLOW
+          </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={() => setShowPasteModal(true)}
-            className="px-3 py-1.5 rounded-full border border-[#E2E8F0] hover:bg-[#F8FAFC] text-xs font-medium text-[#0F172A] flex items-center gap-1.5 transition"
+            className="px-4 py-2 rounded-full border border-[#E2E8F0] bg-white hover:bg-[#F8FAFF] text-sm font-medium text-[#0F172A] flex items-center gap-2 transition shadow-2xs"
           >
-            <ClipboardPaste size={13} className="text-[#635BDB]" />
+            <ClipboardPaste size={15} className="text-[#635BDB]" />
             <span>Paste Text</span>
           </button>
 
           <button
             onClick={onOpenUpload}
-            className="px-3.5 py-1.5 rounded-full bg-[#635BDB] hover:bg-[#5249C9] text-white text-xs font-medium flex items-center gap-1.5 transition"
+            className="px-5 py-2 rounded-full bg-gradient-to-r from-[#635BDB] to-[#7C6FF6] hover:from-[#544BC9] hover:to-[#6B5CE8] text-white text-sm font-semibold flex items-center gap-2 transition shadow-sm"
           >
-            <Upload size={13} />
+            <Upload size={15} />
             <span>Upload PDF</span>
           </button>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 space-y-6">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-5 py-8 sm:py-10 space-y-7">
+        {/* Fade-In Hero Title */}
+        <div className="animate-fade-up space-y-2">
+          <h1 className="text-3xl sm:text-4xl font-bold text-[#0F172A] tracking-tight">
+            Your Study Library
+          </h1>
+          <p className="text-sm sm:text-base text-[#64748B]">
+            Organize PDFs and notes into folders, then launch Ask AI or Quiz in one click.
+          </p>
+        </div>
+
         {/* Folder Strip */}
-        <div className="space-y-2.5">
+        <div className="animate-fade-up-delay space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[#64748B]">Folders</span>
+            <span className="text-sm font-semibold text-[#475569]">Folders</span>
             <button
               onClick={() => setShowNewFolder(prev => !prev)}
-              className="text-xs font-medium text-[#635BDB] hover:underline flex items-center gap-1"
+              className="text-sm font-semibold text-[#635BDB] hover:underline flex items-center gap-1.5"
             >
-              <FolderPlus size={13} />
+              <FolderPlus size={16} />
               <span>New Folder</span>
             </button>
           </div>
 
           {showNewFolder && (
-            <form onSubmit={handleCreateFolderSubmit} className="flex items-center gap-2">
+            <form onSubmit={handleCreateFolderSubmit} className="flex items-center gap-2.5">
               <input
                 type="text"
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 placeholder="Folder name (e.g. Biology Ch.4)"
-                className="flex-1 text-xs px-3 py-2 rounded-xl border border-[#E2E8F0] focus:border-[#635BDB] focus:outline-hidden"
+                className="flex-1 text-sm px-4 py-2.5 rounded-xl border border-[#E2E8F0] focus:border-[#635BDB] focus:outline-hidden"
               />
               <button
                 type="submit"
-                className="px-3.5 py-2 rounded-xl bg-[#0F172A] text-white text-xs font-medium"
+                className="px-5 py-2.5 rounded-xl bg-[#0F172A] text-white text-sm font-semibold"
               >
                 Create
               </button>
             </form>
           )}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2.5">
             {folders.map(folder => {
               const count = documents.filter(d => d.folderId === folder.id).length;
               const isSelected = selectedFolderId === folder.id;
@@ -238,15 +250,17 @@ export default function LibraryView({
                     setShowCompare(false);
                     setCompareIds([]);
                   }}
-                  className={`px-3.5 py-2 rounded-2xl border text-xs font-medium flex items-center gap-2 transition ${
+                  className={`px-4 py-2.5 rounded-2xl border text-sm font-medium flex items-center gap-2.5 transition ${
                     isSelected
-                      ? 'bg-[#EEF2FF] border-[#635BDB] text-[#312E81]'
+                      ? 'bg-[#EEF2FF] border-[#635BDB] text-[#312E81] shadow-2xs'
                       : 'bg-[#F8FAFC] border-[#E2E8F0] text-[#475569] hover:bg-white'
                   }`}
                 >
-                  <Folder size={14} className="text-[#635BDB]" />
+                  <Folder size={16} className="text-[#635BDB]" />
                   <span>{folder.name}</span>
-                  <span className="text-[10px] text-[#94A3B8]">{count}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-white/80 text-[#64748B] font-semibold">
+                    {count}
+                  </span>
                 </button>
               );
             })}
@@ -255,37 +269,37 @@ export default function LibraryView({
 
         {/* Compare Action (only when 2+ items in folder) */}
         {folderDocs.length >= 2 && (
-          <div className="flex items-center justify-between bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl px-4 py-2.5 text-xs">
+          <div className="flex items-center justify-between bg-[#F8FAFC] border border-[#E2E8F0] rounded-2xl px-5 py-3.5 text-sm">
             <span className="text-[#475569]">
               Select 2 files to compare side by side ({compareIds.length}/2 selected)
             </span>
             {compareIds.length === 2 && (
               <button
                 onClick={() => setShowCompare(prev => !prev)}
-                className="px-3 py-1 rounded-full bg-[#635BDB] text-white font-medium flex items-center gap-1.5"
+                className="px-4 py-2 rounded-full bg-[#635BDB] text-white text-sm font-semibold flex items-center gap-2"
               >
-                <Scale size={12} />
+                <Scale size={14} />
                 <span>{showCompare ? 'Hide Comparison' : 'Compare Selected'}</span>
               </button>
             )}
           </div>
         )}
 
-        {/* Side-by-side Comparison View (dynamic based on selected docs) */}
+        {/* Side-by-side Comparison View */}
         {showCompare && comparedDocs.length === 2 && (
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-4 shadow-2xs">
-            <div className="text-sm font-semibold text-[#0F172A]">
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 space-y-4 shadow-xs">
+            <div className="text-base font-semibold text-[#0F172A]">
               Comparison: {comparedDocs[0].title} vs. {comparedDocs[1].title}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               {comparedDocs.map(d => {
                 const docClaims = claims.filter(c => c.sourcePaperId === d.id);
                 return (
                   <div key={d.id} className="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-2">
                     <div className="font-semibold text-[#0F172A]">{d.title}</div>
-                    <p className="text-[#475569] leading-relaxed">{d.keyStance}</p>
+                    <p className="text-[#475569] leading-relaxed text-xs sm:text-sm">{d.keyStance}</p>
                     {docClaims[0] && (
-                      <div className="text-[11px] text-[#635BDB] pt-1">
+                      <div className="text-xs text-[#635BDB] pt-1">
                         Evidence ({docClaims[0].citation}): {docClaims[0].claim}
                       </div>
                     )}
@@ -298,25 +312,37 @@ export default function LibraryView({
 
         {/* Files inside Folder */}
         {folderDocs.length === 0 ? (
-          <div className="py-14 text-center bg-[#F8FAFC] border border-dashed border-[#CBD5E1] rounded-2xl space-y-3">
-            <p className="text-xs text-[#64748B]">This folder is empty.</p>
-            <div className="flex justify-center gap-2">
+          <div className="animate-fade-up-slow py-16 px-6 text-center bg-[#F8FAFC] border-2 border-dashed border-[#CBD5E1] rounded-3xl space-y-5">
+            <div className="w-14 h-14 rounded-2xl bg-[#EEF2FF] text-[#635BDB] flex items-center justify-center mx-auto">
+              <Upload size={26} />
+            </div>
+            <div className="space-y-1.5 max-w-md mx-auto">
+              <h2 className="text-lg font-semibold text-[#0F172A]">
+                Drop your first PDF or study notes here
+              </h2>
+              <p className="text-sm text-[#64748B]">
+                KNOWFLOW turns your material into visual graphs, causal stories, and spaced quizzes.
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-3 pt-1">
               <button
                 onClick={onOpenUpload}
-                className="px-3.5 py-1.5 rounded-full bg-[#635BDB] text-white text-xs font-medium"
+                className="px-6 py-3 rounded-full bg-[#635BDB] hover:bg-[#5249C9] text-white text-sm font-semibold shadow-xs transition flex items-center gap-2"
               >
-                Upload PDF
+                <Upload size={16} />
+                <span>Upload PDF</span>
               </button>
               <button
                 onClick={() => setShowPasteModal(true)}
-                className="px-3.5 py-1.5 rounded-full bg-white border border-[#E2E8F0] text-xs font-medium text-[#0F172A]"
+                className="px-6 py-3 rounded-full bg-white hover:bg-[#F1F5F9] border border-[#E2E8F0] text-sm font-semibold text-[#0F172A] transition flex items-center gap-2"
               >
-                Paste Notes
+                <ClipboardPaste size={16} className="text-[#635BDB]" />
+                <span>Paste Notes</span>
               </button>
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="animate-fade-up-slow space-y-4">
             {folderDocs.map((doc) => {
               const isPreview = previewDocId === doc.id;
               const isChecked = compareIds.includes(doc.id);
@@ -324,40 +350,39 @@ export default function LibraryView({
               return (
                 <div
                   key={doc.id}
-                  className="bg-white border border-[#E2E8F0] rounded-2xl p-4 sm:p-5 space-y-3 shadow-2xs"
+                  className="bg-white border border-[#E2E8F0] rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xs"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3.5 min-w-0">
                       {folderDocs.length >= 2 && (
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => toggleCompare(doc.id)}
-                          className="mt-1 rounded border-[#CBD5E1] text-[#635BDB] cursor-pointer"
+                          className="mt-1.5 w-4 h-4 rounded border-[#CBD5E1] text-[#635BDB] cursor-pointer"
                           title="Select to compare"
                         />
                       )}
-                      <FileText size={18} className="text-[#635BDB] shrink-0 mt-0.5" />
+                      <FileText size={20} className="text-[#635BDB] shrink-0 mt-0.5" />
                       <div className="min-w-0">
-                        <h3 className="text-sm font-semibold text-[#0F172A] truncate">
+                        <h3 className="text-base font-semibold text-[#0F172A] truncate">
                           {doc.title}
                         </h3>
-                        <p className="text-[11px] text-[#64748B]">
+                        <p className="text-xs text-[#64748B] mt-0.5">
                           {doc.sourceType === 'pasted' ? 'Pasted Notes' : 'PDF'} · {doc.pageCount} page{doc.pageCount > 1 ? 's' : ''} · {doc.fileSize}
                         </p>
                       </div>
                     </div>
 
-                    {/* Clean Actions: Call in Ask AI, Visual Graph, Quiz, Audio, Copy, Delete */}
-                    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
                       <button
                         onClick={() => {
                           onSelectContext(doc.folderId, doc.id);
                           onNavigateSection('ask-ai');
                         }}
-                        className="px-3 py-1.5 rounded-full bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#635BDB] text-xs font-medium flex items-center gap-1 transition"
+                        className="px-4 py-2 rounded-full bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#635BDB] text-sm font-semibold flex items-center gap-1.5 transition"
                       >
-                        <MessageSquare size={12} />
+                        <MessageSquare size={14} />
                         <span>Ask AI</span>
                       </button>
 
@@ -366,55 +391,54 @@ export default function LibraryView({
                           onSelectContext(doc.folderId, doc.id);
                           onNavigateSection('quiz');
                         }}
-                        className="px-3 py-1.5 rounded-full bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E2E8F0] text-[#0F172A] text-xs font-medium flex items-center gap-1 transition"
+                        className="px-4 py-2 rounded-full bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E2E8F0] text-[#0F172A] text-sm font-semibold flex items-center gap-1.5 transition"
                       >
-                        <CheckSquare size={12} className="text-[#16A37A]" />
+                        <CheckSquare size={14} className="text-[#16A37A]" />
                         <span>Quiz</span>
                       </button>
 
                       <button
                         onClick={() => setPreviewDocId(isPreview ? null : doc.id)}
-                        className="px-2.5 py-1.5 rounded-full bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E2E8F0] text-[#475569] text-xs font-medium flex items-center gap-1 transition"
+                        className="px-3.5 py-2 rounded-full bg-[#F8FAFC] hover:bg-[#F1F5F9] border border-[#E2E8F0] text-[#475569] text-sm font-medium flex items-center gap-1.5 transition"
                         title="Show visual concept map"
                       >
-                        <GitBranch size={12} />
+                        <GitBranch size={14} />
                         <span>Graph</span>
                       </button>
 
                       <button
                         onClick={() => handleSpeakDoc(doc)}
-                        className="p-1.5 rounded-full hover:bg-[#F8FAFC] text-[#64748B]"
+                        className="p-2 rounded-full hover:bg-[#F8FAFC] text-[#64748B]"
                         title="Listen (0 credits)"
                       >
-                        <Volume2 size={14} />
+                        <Volume2 size={16} />
                       </button>
 
                       <button
                         onClick={() => handleCopyDoc(doc)}
-                        className="p-1.5 rounded-full hover:bg-[#F8FAFC] text-[#64748B]"
+                        className="p-2 rounded-full hover:bg-[#F8FAFC] text-[#64748B]"
                         title="Copy overview"
                       >
                         {copiedId === doc.id ? (
-                          <Check size={14} className="text-[#16A37A]" />
+                          <Check size={16} className="text-[#16A37A]" />
                         ) : (
-                          <Copy size={14} />
+                          <Copy size={16} />
                         )}
                       </button>
 
                       <button
                         onClick={() => onDeleteDocument(doc.id)}
-                        className="p-1.5 rounded-full hover:bg-[#FEF2F2] text-[#94A3B8] hover:text-[#E05252]"
+                        className="p-2 rounded-full hover:bg-[#FEF2F2] text-[#94A3B8] hover:text-[#E05252]"
                         title="Remove from library"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </div>
 
-                  {/* Context Visual Graph Preview */}
                   {isPreview && (
-                    <div className="pt-2 space-y-2.5">
-                      <p className="text-xs text-[#475569] leading-relaxed">{doc.abstract}</p>
+                    <div className="pt-2 space-y-3">
+                      <p className="text-sm text-[#475569] leading-relaxed">{doc.abstract}</p>
                       <VisualFlowCard graph={buildDocVisualGraph(doc)} />
                     </div>
                   )}
@@ -430,16 +454,16 @@ export default function LibraryView({
         <div className="fixed inset-0 z-50 bg-slate-900/35 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handlePasteSubmit}
-            className="bg-white border border-[#E2E8F0] rounded-2xl max-w-lg w-full p-5 shadow-xl space-y-4"
+            className="bg-white border border-[#E2E8F0] rounded-3xl max-w-lg w-full p-6 shadow-xl space-y-4"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[#0F172A]">
+              <h3 className="text-base font-semibold text-[#0F172A]">
                 Paste Study Material into Folder
               </h3>
               <button
                 type="button"
                 onClick={() => setShowPasteModal(false)}
-                className="text-xs text-[#64748B]"
+                className="text-sm text-[#64748B]"
               >
                 ✕
               </button>
@@ -450,7 +474,7 @@ export default function LibraryView({
               value={pasteTitle}
               onChange={(e) => setPasteTitle(e.target.value)}
               placeholder="Title (e.g. Thermodynamics Notes)"
-              className="w-full text-xs px-3 py-2 rounded-xl border border-[#E2E8F0] focus:border-[#635BDB] focus:outline-hidden"
+              className="w-full text-sm px-4 py-2.5 rounded-xl border border-[#E2E8F0] focus:border-[#635BDB] focus:outline-hidden"
             />
 
             <textarea
@@ -459,21 +483,21 @@ export default function LibraryView({
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               placeholder="Paste your text, article, or notes here..."
-              className="w-full text-xs px-3 py-2 rounded-xl border border-[#E2E8F0] focus:border-[#635BDB] focus:outline-hidden"
+              className="w-full text-sm px-4 py-3 rounded-xl border border-[#E2E8F0] focus:border-[#635BDB] focus:outline-hidden"
             />
 
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setShowPasteModal(false)}
-                className="px-3.5 py-2 rounded-xl border border-[#E2E8F0] text-xs font-medium text-[#64748B]"
+                className="px-4 py-2.5 rounded-full border border-[#E2E8F0] text-sm font-medium text-[#64748B]"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSaving || !pasteText.trim()}
-                className="px-4 py-2 rounded-xl bg-[#635BDB] text-white text-xs font-semibold disabled:opacity-50"
+                className="px-5 py-2.5 rounded-full bg-[#635BDB] text-white text-sm font-semibold disabled:opacity-50"
               >
                 {isSaving ? 'Extracting...' : 'Save to Folder'}
               </button>
