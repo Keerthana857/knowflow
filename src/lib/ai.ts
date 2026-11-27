@@ -483,31 +483,65 @@ ${stageInstructions[stage]}`;
     };
   }
 
-  // Context-grounded deterministic fallback (uses the ACTUAL retrieved sentences/concepts—never generic!)
-  return buildContextFallbackTutorReply(stage, userMessage, retrieved, stageNames[stage]);
+  // Context-grounded deterministic fallback (passes grokRes.error so UI reports invalid/exhausted keys)
+  return buildContextFallbackTutorReply(
+    stage,
+    userMessage,
+    retrieved,
+    stageNames[stage],
+    grokRes.error
+  );
 }
 
 function buildContextFallbackTutorReply(
   stage: TutorStage,
   userMessage: string,
   retrieved: RetrievedContext,
-  stageTitle: string
+  stageTitle: string,
+  aiError?: string
 ): TutorResponsePayload {
   const topExcerpt = retrieved.excerpts[0];
   const secondExcerpt = retrieved.excerpts[1] || topExcerpt;
   const concept = retrieved.scopedConcepts[0];
   const concept2 = retrieved.scopedConcepts[1] || concept;
 
-  const docTitle = topExcerpt?.docTitle || 'Your Document';
-  const rawText = topExcerpt?.text || concept?.summary || '';
-  const sentences = rawText
-    .split(/(?<=[.!?])\s+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 20);
+  const docTitle = topExcerpt?.docTitle || 'Your Material';
 
-  const s1 = sentences[0] || concept?.chunks[0]?.simple.analogy || rawText.slice(0, 160);
-  const s2 = sentences[1] || concept?.chunks[0]?.simple.intuition || s1;
-  const s3 = sentences[2] || secondExcerpt?.text.split(/(?<=[.!?])\s+/)[0] || s2;
+  // Gather real sentences from ALL retrieved excerpts, filtering out upload placeholders
+  const isPlaceholder = (txt: string) =>
+    /^(Saved PDF file|Ask questions or paste|Topic requested directly)/i.test(txt.trim());
+
+  const allSentences = retrieved.excerpts
+    .flatMap(ex =>
+      ex.text
+        .split(/(?<=[.!?])\s+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 28 && !isPlaceholder(s))
+    );
+
+  const hasRealText = allSentences.length > 0 || Boolean(concept);
+
+  if (!hasRealText) {
+    return {
+      stage,
+      stageTitle,
+      headline: `${docTitle.slice(0, 40)} — Needs Text or Live Grok Key`,
+      narrative:
+        'This PDF appears to contain scanned images without selectable text, and the Grok API key is not active yet. Paste a short excerpt or update GROK_API_KEY to get brief, accurate explanations and quizzes.',
+      citations: retrieved.citations,
+      usedGrok: false,
+      aiError:
+        aiError ||
+        'Grok API key is invalid or out of credits. Add a valid xai-... key in .env.local / Vercel.'
+    };
+  }
+
+  const s1 = allSentences[0] || concept?.chunks[0]?.simple.analogy || concept?.summary || '';
+  const s2 = allSentences[1] || concept?.chunks[0]?.simple.intuition || s1;
+  const s3 = allSentences[2] || allSentences[0] || s2;
+  const s4 = allSentences[3] || s2;
+  const s5 = allSentences[4] || s3;
+  const s6 = allSentences[5] || s1;
 
   const graphNodes =
     retrieved.scopedConcepts.slice(0, 4).length >= 2
@@ -552,7 +586,8 @@ function buildContextFallbackTutorReply(
         hint: `Think back to the story beat: ${analogy.slice(0, 90)}...`
       },
       citations: retrieved.citations,
-      usedGrok: false
+      usedGrok: false,
+      aiError
     };
   }
 
@@ -581,7 +616,8 @@ function buildContextFallbackTutorReply(
         hint: concept?.priorityReason || s2
       },
       citations: retrieved.citations,
-      usedGrok: false
+      usedGrok: false,
+      aiError
     };
   }
 
@@ -603,7 +639,8 @@ function buildContextFallbackTutorReply(
         hint: concept?.chunks[0]?.keyTakeaway || s2
       },
       citations: retrieved.citations,
-      usedGrok: false
+      usedGrok: false,
+      aiError
     };
   }
 
@@ -620,7 +657,8 @@ function buildContextFallbackTutorReply(
         narrative: `Close your notes for a moment and teach "${concept?.name || docTitle}" back to me like I'm 12 years old. Type or use the mic button below.`,
         teachBackPrompt: `Explain "${concept?.name || topExcerpt?.heading}" in 2–4 plain sentences using your own words.`,
         citations: retrieved.citations,
-        usedGrok: false
+        usedGrok: false,
+        aiError
       };
     }
 
@@ -664,7 +702,8 @@ function buildContextFallbackTutorReply(
         passed
       },
       citations: retrieved.citations,
-      usedGrok: false
+      usedGrok: false,
+      aiError
     };
   }
 
@@ -678,50 +717,50 @@ function buildContextFallbackTutorReply(
     {
       id: 'sr-1',
       daySchedule: '1d' as const,
-      topic: cA?.name || 'Core Concept',
-      question: cA?.assessment[1]?.question || `Why does ${cA?.name || 'this mechanism'} solve the problem introduced in "${docTitle}"?`,
-      hint: cA?.chunks[0]?.simple.intuition || s1,
-      answer: cA?.assessment[1]?.rubricExplanation || cA?.chunks[0]?.keyTakeaway || s2
+      topic: cA?.name || topExcerpt?.heading || 'Core Idea',
+      question: cA?.assessment[1]?.question || `What key idea does "${topExcerpt?.heading || docTitle}" explain?`,
+      hint: s1.slice(0, 110),
+      answer: `${s1} ${s2 !== s1 ? s2 : ''}`.trim()
     },
     {
       id: 'sr-2',
       daySchedule: '1d' as const,
-      topic: cB?.name || 'Core Mechanism',
-      question: cB?.assessment[0]?.question || `How would you recognize when ${cB?.name || 'this concept'} is needed?`,
-      hint: cB?.chunks[0]?.simple.analogy || s2,
-      answer: cB?.summary || s2
+      topic: cB?.name || secondExcerpt?.heading || 'Mechanism',
+      question: cB?.assessment[0]?.question || `How does the mechanism in "${secondExcerpt?.heading || docTitle}" work?`,
+      hint: s2.slice(0, 110),
+      answer: s2
     },
     {
       id: 'sr-3',
       daySchedule: '3d' as const,
-      topic: cA?.name || 'Applied Scenario',
-      question: cA?.assessment[2]?.question || `If input scale increases 10x in a real system, what fails first according to "${docTitle}"?`,
-      hint: cA?.chunks[0]?.deep.edgeCases || s3,
-      answer: cA?.assessment[2]?.rubricExplanation || cA?.chunks[0]?.deep.edgeCases || s3
+      topic: cA?.name || 'Application',
+      question: cA?.assessment[2]?.question || `Where would you apply "${topExcerpt?.heading || docTitle}" in practice?`,
+      hint: s3.slice(0, 110),
+      answer: s3
     },
     {
       id: 'sr-4',
       daySchedule: '3d' as const,
       topic: cC?.name || 'Connections',
-      question: `How do ${cA?.name || 'Concept 1'} and ${cB?.name || 'Concept 2'} work together—and what happens if you only use one?`,
-      hint: cC?.priorityReason || s2,
-      answer: cC?.chunks[0]?.keyTakeaway || cC?.summary || s3
+      question: `How does "${topExcerpt?.heading || 'the first idea'}" connect to "${secondExcerpt?.heading || 'later sections'}"?`,
+      hint: s4.slice(0, 110),
+      answer: s4
     },
     {
       id: 'sr-5',
       daySchedule: '7d' as const,
-      topic: cB?.name || 'Trap Check',
-      question: cB?.assessment[2]?.question || `What is the biggest common misconception or edge case in ${cB?.name || 'this material'}?`,
-      hint: cB?.chunks[0]?.deep.edgeCases || s3,
-      answer: cB?.chunks[0]?.deep.edgeCases || cB?.summary || s3
+      topic: cB?.name || 'Edge Case',
+      question: cB?.assessment[2]?.question || `What limitation or condition must hold for "${topExcerpt?.heading || docTitle}"?`,
+      hint: s5.slice(0, 110),
+      answer: s5
     },
     {
       id: 'sr-6',
       daySchedule: '7d' as const,
       topic: cC?.name || 'Transfer',
-      question: `Design a quick test to verify whether "${cC?.name || topExcerpt?.heading}" holds in a brand-new scenario.`,
-      hint: `Check the boundary condition in ${cC?.sourceSection || `p.${topExcerpt?.page || 1}`}.`,
-      answer: cC?.examples[0]?.breakdown || cC?.summary || s3
+      question: `In 1–2 sentences, explain the main takeaway of "${docTitle}" to a beginner.`,
+      hint: s6.slice(0, 110),
+      answer: s6
     }
   ];
 
@@ -729,10 +768,11 @@ function buildContextFallbackTutorReply(
     stage: 5,
     stageTitle,
     headline: `Spaced Recall Pack: ${docTitle.slice(0, 34)}`,
-    narrative: `6 mixed application prompts scheduled for Day 1, Day 3, and Day 7. Answers stay hidden until you click Reveal.`,
+    narrative: `6 brief application prompts scheduled for Day 1, Day 3, and Day 7.`,
     spacedQuestions,
     citations: retrieved.citations,
-    usedGrok: false
+    usedGrok: false,
+    aiError
   };
 }
 

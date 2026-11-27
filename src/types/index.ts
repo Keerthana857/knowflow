@@ -220,6 +220,7 @@ export interface TutorResponsePayload {
   };
   citations: string[];
   usedGrok: boolean;
+  aiError?: string;
 }
 
 export interface ChatMessage {

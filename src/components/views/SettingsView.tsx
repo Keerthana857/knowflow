@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { WorkspaceState } from '../../types';
-import { Menu, Trash2, Sparkles, Volume2, Zap, Database, LogOut } from 'lucide-react';
+import { Menu, Trash2, Sparkles, Volume2, Zap, Database, LogOut, RefreshCw } from 'lucide-react';
 
 interface SettingsViewProps {
   workspace: WorkspaceState;
@@ -28,6 +28,30 @@ export default function SettingsView({
   const creditSaver = workspace.creditSaverMode ?? true;
   const audioSpeed = workspace.audioSpeed ?? 1.0;
 
+  const [grokHealth, setGrokHealth] = useState<{
+    ok: boolean;
+    status: string;
+    message: string;
+  } | null>(null);
+  const [isTestingGrok, setIsTestingGrok] = useState(false);
+
+  const checkGrokLive = async () => {
+    setIsTestingGrok(true);
+    try {
+      const res = await fetch('/api/workspace?verifyGrok=1');
+      const data = await res.json();
+      if (data.grokHealth) setGrokHealth(data.grokHealth);
+    } catch {
+      setGrokHealth({ ok: false, status: 'network_error', message: 'Could not reach server' });
+    } finally {
+      setIsTestingGrok(false);
+    }
+  };
+
+  useEffect(() => {
+    if (grokConfigured) checkGrokLive();
+  }, [grokConfigured]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F5F7FF] via-[#FFFFFF] to-[#F3FAFF] text-[#0F172A] flex flex-col">
       <header className="h-16 px-5 border-b border-[#E6EAF5]/80 bg-white/80 backdrop-blur-md flex items-center gap-3">
@@ -47,13 +71,13 @@ export default function SettingsView({
         <div className="animate-fade-up space-y-1.5 pb-2">
           <h1 className="text-3xl font-bold text-[#0F172A] tracking-tight">Settings</h1>
           <p className="text-sm text-[#64748B]">
-            Manage your account, audio voice speed, and credit-saving preferences.
+            Manage your account, audio voice speed, and Grok / Firebase status.
           </p>
         </div>
 
         <div className="animate-fade-up-delay space-y-4">
           {user && (
-            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 flex items-center justify-between gap-4">
+            <div className="bg-white border border-[#E6EAF5] rounded-3xl p-6 flex items-center justify-between gap-4 shadow-2xs">
               <div className="min-w-0">
                 <div className="text-base font-semibold text-[#0F172A] truncate">
                   {user.displayName || 'Google Account'}
@@ -70,7 +94,7 @@ export default function SettingsView({
             </div>
           )}
 
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 flex items-center justify-between">
+          <div className="bg-white border border-[#E6EAF5] rounded-3xl p-6 flex items-center justify-between shadow-2xs">
             <div className="flex items-center gap-3.5">
               <Database size={20} className="text-[#635BDB]" />
               <div>
@@ -80,31 +104,60 @@ export default function SettingsView({
             </div>
             <span
               className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                firebaseConfigured ? 'bg-[#F0FDF4] text-[#16A37A]' : 'bg-[#FFFBEB] text-[#D97706]'
+                firebaseConfigured ? 'bg-[#ECFDF5] text-[#059669]' : 'bg-[#FFFBEB] text-[#D97706]'
               }`}
             >
               {firebaseConfigured ? 'Connected' : 'Add Keys'}
             </span>
           </div>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 flex items-center justify-between">
-            <div className="flex items-center gap-3.5">
-              <Sparkles size={20} className="text-[#635BDB]" />
-              <div>
-                <div className="text-base font-semibold text-[#0F172A]">Grok AI Engine</div>
-                <div className="text-sm text-[#64748B]">Uses GROK_API_KEY</div>
+          <div className="bg-white border border-[#E6EAF5] rounded-3xl p-6 space-y-3 shadow-2xs">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3.5">
+                <Sparkles size={20} className="text-[#635BDB]" />
+                <div>
+                  <div className="text-base font-semibold text-[#0F172A]">Grok AI Engine</div>
+                  <div className="text-sm text-[#64748B]">Uses GROK_API_KEY</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={checkGrokLive}
+                  disabled={isTestingGrok}
+                  className="px-3 py-1 rounded-full border border-[#E2E8F0] hover:bg-[#F8FAFF] text-xs font-medium text-[#475569] flex items-center gap-1"
+                >
+                  <RefreshCw size={12} className={isTestingGrok ? 'animate-spin' : ''} />
+                  <span>Test Key</span>
+                </button>
+                <span
+                  className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                    grokHealth?.ok
+                      ? 'bg-[#ECFDF5] text-[#059669]'
+                      : 'bg-[#FEF2F2] text-[#DC2626]'
+                  }`}
+                >
+                  {grokHealth
+                    ? grokHealth.ok
+                      ? 'Working'
+                      : grokHealth.status === 'out_of_credits'
+                      ? 'Out of Credits'
+                      : 'Invalid Key'
+                    : grokConfigured
+                    ? 'Checking...'
+                    : 'Not Set'}
+                </span>
               </div>
             </div>
-            <span
-              className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                grokConfigured ? 'bg-[#F0FDF4] text-[#16A37A]' : 'bg-[#FFFBEB] text-[#D97706]'
-              }`}
-            >
-              {grokConfigured ? 'Key Detected' : 'Not Set'}
-            </span>
+
+            {grokHealth && !grokHealth.ok && (
+              <div className="p-3.5 rounded-2xl bg-[#FFFBEB] border border-[#FEF3C7] text-xs text-[#92400E]">
+                {grokHealth.message}
+              </div>
+            )}
           </div>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 flex items-center justify-between gap-4">
+          <div className="bg-white border border-[#E6EAF5] rounded-3xl p-6 flex items-center justify-between gap-4 shadow-2xs">
             <div className="flex items-center gap-3.5">
               <Zap size={20} className="text-[#635BDB]" />
               <div>
@@ -117,14 +170,14 @@ export default function SettingsView({
             <button
               onClick={() => onUpdateSettings({ creditSaverMode: !creditSaver })}
               className={`px-4 py-2 rounded-full text-sm font-semibold transition ${
-                creditSaver ? 'bg-[#635BDB] text-white' : 'bg-[#F1F5F9] text-[#475569]'
+                creditSaver ? 'bg-gradient-to-r from-[#635BDB] to-[#7C6FF6] text-white' : 'bg-[#F1F5F9] text-[#475569]'
               }`}
             >
               {creditSaver ? 'On' : 'Off'}
             </button>
           </div>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 flex items-center justify-between gap-4">
+          <div className="bg-white border border-[#E6EAF5] rounded-3xl p-6 flex items-center justify-between gap-4 shadow-2xs">
             <div className="flex items-center gap-3.5">
               <Volume2 size={20} className="text-[#635BDB]" />
               <div>
@@ -149,7 +202,7 @@ export default function SettingsView({
             </div>
           </div>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 flex items-center justify-between gap-4">
+          <div className="bg-white border border-[#E6EAF5] rounded-3xl p-6 flex items-center justify-between gap-4 shadow-2xs">
             <div>
               <div className="text-base font-semibold text-[#0F172A]">Clear My Data</div>
               <div className="text-sm text-[#64748B]">Delete all uploaded files and chats</div>

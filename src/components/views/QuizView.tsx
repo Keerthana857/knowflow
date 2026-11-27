@@ -57,8 +57,11 @@ export default function QuizView({
 
   // Spaced Recall Pack (Stage 5) loaded dynamically for the active document
   const [spacedItems, setSpacedItems] = useState<SpacedQuestion[]>([]);
+  const [spacedNarrative, setSpacedNarrative] = useState<string>('');
+  const [spacedAiError, setSpacedAiError] = useState<string | null>(null);
   const [isLoadingSpaced, setIsLoadingSpaced] = useState(false);
   const [revealedSpaced, setRevealedSpaced] = useState<Record<string, boolean>>({});
+  const spacedAbortRef = React.useRef<AbortController | null>(null);
 
   const handleCheckQuestion = (qId: string, correctId: string | undefined, conceptId: string) => {
     const chosen = answers[qId];
@@ -76,15 +79,35 @@ export default function QuizView({
     }
   };
 
+  const handleEndQuiz = () => {
+    if (spacedAbortRef.current) {
+      spacedAbortRef.current.abort();
+      spacedAbortRef.current = null;
+    }
+    setIsLoadingSpaced(false);
+    setAnswers({});
+    setCheckedState({});
+    setSpacedItems([]);
+    setSpacedAiError(null);
+    setRevealedSpaced({});
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  };
+
   const loadSpacedRecall = async () => {
     setIsLoadingSpaced(true);
+    setSpacedAiError(null);
+    const controller = new AbortController();
+    spacedAbortRef.current = controller;
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           stage: 5,
-          message: `Generate spaced recall pack for ${activeDoc?.title || 'this material'}`,
+          message: `Generate 6 brief mixed application questions with crisp 1-2 sentence answers for ${activeDoc?.title || 'this material'}`,
           folderId: activeDoc?.folderId,
           documentId: activeDoc?.id,
           documents: workspace.documents,
@@ -93,12 +116,17 @@ export default function QuizView({
         })
       });
       const data = await res.json();
-      if (res.ok && data.tutorData?.spacedQuestions) {
-        setSpacedItems(data.tutorData.spacedQuestions);
+      if (res.ok && data.tutorData) {
+        setSpacedItems(data.tutorData.spacedQuestions || []);
+        setSpacedNarrative(data.tutorData.narrative || '');
+        setSpacedAiError(data.tutorData.aiError || null);
       }
-    } catch (err) {
-      console.error('Failed to load spaced recall:', err);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.error('Failed to load spaced recall:', err);
+      }
     } finally {
+      spacedAbortRef.current = null;
       setIsLoadingSpaced(false);
     }
   };
@@ -363,24 +391,50 @@ export default function QuizView({
         ) : (
           /* Spaced & Interleaved Recall (1d / 3d / 7d) */
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-[#64748B]">
                 Mixed application prompts for <strong className="text-[#0F172A]">{activeDoc?.title}</strong>
               </span>
-              <button
-                onClick={loadSpacedRecall}
-                disabled={isLoadingSpaced}
-                className="text-xs font-medium text-[#635BDB] hover:underline flex items-center gap-1"
-              >
-                <RotateCcw size={12} />
-                <span>Refresh Pack</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={loadSpacedRecall}
+                  disabled={isLoadingSpaced}
+                  className="px-3.5 py-1.5 rounded-full bg-[#EEF2FF] text-xs font-semibold text-[#635BDB] hover:bg-[#E0E7FF] flex items-center gap-1.5 transition"
+                >
+                  <RotateCcw size={12} />
+                  <span>Refresh Pack</span>
+                </button>
+                <button
+                  onClick={handleEndQuiz}
+                  className="px-3.5 py-1.5 rounded-full bg-[#FEF2F2] border border-[#FECACA] text-xs font-semibold text-[#DC2626] hover:bg-[#FEE2E2] transition"
+                >
+                  End Quiz
+                </button>
+              </div>
             </div>
 
+            {spacedAiError && (
+              <div className="p-4 rounded-2xl bg-[#FFFBEB] border border-[#FEF3C7] text-xs text-[#92400E] leading-relaxed">
+                <strong>Grok Key / Credit Alert:</strong> {spacedAiError}
+              </div>
+            )}
+
+            {spacedNarrative && spacedItems.length === 0 && !isLoadingSpaced && (
+              <div className="p-5 rounded-3xl bg-white border border-[#E6EAF5] text-sm text-[#334155]">
+                {spacedNarrative}
+              </div>
+            )}
+
             {isLoadingSpaced ? (
-              <div className="p-8 text-center text-xs text-[#64748B] flex items-center justify-center gap-2">
-                <Sparkles size={14} className="text-[#635BDB] animate-spin" />
+              <div className="p-8 bg-white border border-[#E6EAF5] rounded-3xl text-center text-sm text-[#64748B] flex items-center justify-center gap-3">
+                <Sparkles size={16} className="text-[#635BDB] animate-spin" />
                 <span>Generating mixed spaced recall questions...</span>
+                <button
+                  onClick={handleEndQuiz}
+                  className="px-3.5 py-1 rounded-full bg-[#FEF2F2] text-[#DC2626] text-xs font-semibold"
+                >
+                  Stop
+                </button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -389,7 +443,7 @@ export default function QuizView({
                   return (
                     <div
                       key={sq.id}
-                      className="bg-white border border-[#E2E8F0] rounded-2xl p-5 space-y-2.5 shadow-2xs"
+                      className="bg-white border border-[#E6EAF5] rounded-3xl p-5 space-y-2.5 shadow-2xs"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#EEF2FF] text-[#635BDB]">

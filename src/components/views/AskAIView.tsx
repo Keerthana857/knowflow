@@ -86,6 +86,7 @@ export default function AskAIView({
   const [showMentionMenu, setShowMentionMenu] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Attach / Paste popover
   const [showAttachMenu, setShowAttachMenu] = useState(false);
@@ -175,6 +176,24 @@ export default function AskAIView({
     rec.start();
   };
 
+  const handleStopOrEnd = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsLoading(false);
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setSpeakingMsgId(null);
+    }
+  };
+
+  const handleEndSession = () => {
+    handleStopOrEnd();
+    setMessages([]);
+    setActiveStage(1);
+  };
+
   const sendToTutor = async (promptText: string, stageToRun: TutorStage) => {
     if (isLoading) return;
     const cleanPrompt = promptText.trim();
@@ -193,10 +212,14 @@ export default function AskAIView({
     setActiveStage(stageToRun);
     setIsLoading(true);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           message: cleanPrompt || `Teach Stage ${stageToRun}`,
           stage: stageToRun,
@@ -224,9 +247,12 @@ export default function AskAIView({
           return next;
         });
       }
-    } catch (err) {
-      console.error('Ask AI error:', err);
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.error('Ask AI error:', err);
+      }
     } finally {
+      abortControllerRef.current = null;
       setIsLoading(false);
     }
   };
@@ -370,6 +396,16 @@ export default function AskAIView({
             <span className="hidden sm:inline">Next</span>
             <ChevronRight size={15} />
           </button>
+
+          {messages.length > 0 && (
+            <button
+              onClick={handleEndSession}
+              className="px-3.5 py-1.5 rounded-full border border-[#FEE2E2] bg-[#FEF2F2] hover:bg-[#FEE2E2] text-[#DC2626] text-sm font-medium transition"
+              title="End current chat session"
+            >
+              End
+            </button>
+          )}
         </div>
       </header>
 
@@ -565,6 +601,13 @@ export default function AskAIView({
                       </button>
                     </div>
                   </div>
+
+                  {/* Grok API Key / Credit Warning if fallback used */}
+                  {t?.aiError && (
+                    <div className="px-4 py-2.5 rounded-2xl bg-[#FFFBEB] border border-[#FEF3C7] text-xs text-[#92400E]">
+                      <strong>Grok Notice:</strong> {t.aiError}
+                    </div>
+                  )}
 
                   {/* Narrative */}
                   {t?.narrative && (
@@ -809,9 +852,18 @@ export default function AskAIView({
           })}
 
           {isLoading && (
-            <div className="bg-white border border-[#E2E8F0] rounded-2xl p-5 text-xs text-[#64748B] flex items-center gap-2 animate-pulse">
-              <Sparkles size={14} className="text-[#635BDB]" />
-              <span>Building Stage {activeStage} from {activeDoc?.title || 'your context'}...</span>
+            <div className="bg-white border border-[#E6EAF5] rounded-3xl p-5 text-sm text-[#64748B] flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 animate-pulse">
+                <Sparkles size={16} className="text-[#635BDB]" />
+                <span>Building Stage {activeStage} from {activeDoc?.title || 'your context'}...</span>
+              </div>
+              <button
+                onClick={handleStopOrEnd}
+                className="px-4 py-1.5 rounded-full bg-[#FEF2F2] border border-[#FECACA] text-[#DC2626] text-xs font-semibold hover:bg-[#FEE2E2] transition flex items-center gap-1.5 shrink-0"
+              >
+                <Square size={11} />
+                <span>Stop</span>
+              </button>
             </div>
           )}
 

@@ -30,6 +30,7 @@ export default function UploadModal({
   const [progressText, setProgressText] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cancelledRef = useRef(false);
 
   if (!isOpen) return null;
 
@@ -74,9 +75,17 @@ export default function UploadModal({
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleCancel = () => {
+    cancelledRef.current = true;
+    setIsSaving(false);
+    setProgressText('');
+    onClose();
+  };
+
   const handleSubmit = async () => {
     if (files.length === 0) return;
 
+    cancelledRef.current = false;
     setIsSaving(true);
     setErrorMessage('');
     setProgressText('Saving to your Library...');
@@ -86,14 +95,17 @@ export default function UploadModal({
       const savedDocs: DocumentSource[] = [];
 
       for (let i = 0; i < files.length; i++) {
+        if (cancelledRef.current) return;
         const f = files[i];
         setProgressText(`Saving ${f.name}...`);
         const doc = await parsePdfClientSide(f, targetFolder, (_pct, label) => {
-          setProgressText(`${f.name} · ${label}`);
+          if (!cancelledRef.current) setProgressText(`${f.name} · ${label}`);
         });
+        if (cancelledRef.current) return;
         savedDocs.push(doc);
       }
 
+      if (cancelledRef.current) return;
       await onUploadSuccess({
         documents: savedDocs,
         concepts: [],
@@ -104,8 +116,10 @@ export default function UploadModal({
       setProgressText('');
       onClose();
     } catch (err: any) {
-      console.error('Save failed:', err);
-      setErrorMessage(err?.message || 'Could not save PDF to Library.');
+      if (!cancelledRef.current) {
+        console.error('Save failed:', err);
+        setErrorMessage(err?.message || 'Could not save PDF to Library.');
+      }
     } finally {
       setIsSaving(false);
     }
@@ -122,7 +136,7 @@ export default function UploadModal({
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleCancel}
             className="p-2 rounded-full text-[#64748B] hover:text-[#0F172A] hover:bg-[#F5F7FF] transition"
           >
             <X size={18} />
@@ -205,11 +219,10 @@ export default function UploadModal({
 
         <div className="flex items-center justify-end gap-2.5 pt-1">
           <button
-            onClick={onClose}
-            disabled={isSaving}
+            onClick={handleCancel}
             className="px-5 py-2.5 rounded-full border border-[#E2E8F0] hover:bg-[#F8FAFC] text-sm font-medium text-[#64748B] transition"
           >
-            Cancel
+            {isSaving ? 'Stop & Cancel' : 'Cancel'}
           </button>
 
           <button

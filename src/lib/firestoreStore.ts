@@ -93,7 +93,12 @@ export async function loadUserWorkspaceFromFirestore(
 
   const profileData = userSnap.data() || {};
 
-  const foldersSnap = await getDocs(collection(db, 'users', uid, 'folders'));
+  const [foldersSnap, docsSnap, chatsSnap] = await Promise.all([
+    getDocs(collection(db, 'users', uid, 'folders')),
+    getDocs(collection(db, 'users', uid, 'documents')),
+    getDocs(collection(db, 'users', uid, 'chats'))
+  ]);
+
   const folders: LibraryFolder[] = [];
   foldersSnap.forEach(d => folders.push(d.data() as LibraryFolder));
 
@@ -105,7 +110,6 @@ export async function loadUserWorkspaceFromFirestore(
     );
   }
 
-  const docsSnap = await getDocs(collection(db, 'users', uid, 'documents'));
   const documents: DocumentSource[] = [];
   const concepts: Concept[] = [];
   const claims: EvidenceClaim[] = [];
@@ -118,7 +122,6 @@ export async function loadUserWorkspaceFromFirestore(
     if (Array.isArray(docClaims)) claims.push(...docClaims);
   });
 
-  const chatsSnap = await getDocs(collection(db, 'users', uid, 'chats'));
   const chats: StoredChatSession[] = [];
   chatsSnap.forEach(c => chats.push(c.data() as StoredChatSession));
   chats.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));

@@ -83,26 +83,63 @@ export default function KnowflowApp() {
       return;
     }
 
+    // Hard safety cap: never allow spinner to hang infinitely (e.g. if Brave Shields blocks WebChannel)
+    const safetyTimer = setTimeout(() => {
+      setAuthChecked(true);
+      setIsLoadingData(false);
+    }, 3000);
+
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       setUser(fbUser);
       setAuthChecked(true);
 
       if (fbUser) {
-        setIsLoadingData(true);
+        // Hydrate immediately from local cache if present so UI opens instantaneously
         try {
-          const loaded = await loadUserWorkspaceFromFirestore(fbUser.uid, {
-            email: fbUser.email,
-            displayName: fbUser.displayName
-          });
-          setWorkspace(loaded.workspace);
-          setChats(loaded.chats);
+          const cachedRaw = localStorage.getItem(`knowflow_ws_${fbUser.uid}`);
+          if (cachedRaw) {
+            const parsed = JSON.parse(cachedRaw);
+            if (parsed?.workspace) setWorkspace(parsed.workspace);
+            if (Array.isArray(parsed?.chats)) setChats(parsed.chats);
+            setIsLoadingData(false);
+          }
+        } catch {
+          // ignore localStorage read errors
+        }
+
+        // Sync with Firestore using a 3-second race so blocked networks never freeze the app
+        try {
+          const timeoutPromise = new Promise<null>(resolve =>
+            setTimeout(() => resolve(null), 3000)
+          );
+          const loaded = await Promise.race([
+            loadUserWorkspaceFromFirestore(fbUser.uid, {
+              email: fbUser.email,
+              displayName: fbUser.displayName
+            }),
+            timeoutPromise
+          ]);
+
+          if (loaded) {
+            setWorkspace(loaded.workspace);
+            setChats(loaded.chats);
+            try {
+              const serialized = JSON.stringify(loaded);
+              if (serialized.length < 1_800_000) {
+                localStorage.setItem(`knowflow_ws_${fbUser.uid}`, serialized);
+              }
+            } catch {
+              // ignore quota errors
+            }
+          }
         } catch (err: any) {
-          console.error('Firestore load error:', err);
-          showToast('Firestore permissions or connection check needed.');
+          console.error('Firestore load warning:', err);
         } finally {
+          clearTimeout(safetyTimer);
           setIsLoadingData(false);
         }
       } else {
+        clearTimeout(safetyTimer);
         setWorkspace(createEmptyWorkspace());
         setChats([]);
         setMessages([]);
@@ -111,8 +148,24 @@ export default function KnowflowApp() {
       }
     });
 
-    return () => unsub();
+    return () => {
+      clearTimeout(safetyTimer);
+      unsub();
+    };
   }, []);
+
+  // Mirror signed-in user's workspace locally for instant load & resilience
+  useEffect(() => {
+    if (!user || isLoadingData) return;
+    try {
+      const serialized = JSON.stringify({ workspace, chats });
+      if (serialized.length < 1_800_000) {
+        localStorage.setItem(`knowflow_ws_${user.uid}`, serialized);
+      }
+    } catch {
+      // ignore quota errors
+    }
+  }, [user, workspace, chats, isLoadingData]);
 
   const handleGoogleSignIn = async () => {
     setAuthError(null);
@@ -201,15 +254,18 @@ export default function KnowflowApp() {
     }));
 
     if (user) {
-      for (const docItem of result.documents) {
-        const docConcepts = result.concepts.filter(c => c.sourceDocumentId === docItem.id);
-        const docClaims = result.claims.filter(cl => cl.sourcePaperId === docItem.id);
-        await saveDocumentInFirestore(user.uid, {
-          ...docItem,
-          concepts: docConcepts,
-          claims: docClaims
-        }).catch(console.error);
-      }
+      // Sync to Firestore in the background so UI closes and updates instantaneously
+      Promise.all(
+        result.documents.map(docItem => {
+          const docConcepts = result.concepts.filter(c => c.sourceDocumentId === docItem.id);
+          const docClaims = result.claims.filter(cl => cl.sourcePaperId === docItem.id);
+          return saveDocumentInFirestore(user.uid, {
+            ...docItem,
+            concepts: docConcepts,
+            claims: docClaims
+          });
+        })
+      ).catch(console.error);
     }
   };
 

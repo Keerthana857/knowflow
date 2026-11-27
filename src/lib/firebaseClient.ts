@@ -6,7 +6,7 @@ import {
   signOut,
   Auth
 } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
@@ -51,7 +51,13 @@ export function getFirebaseDb(): Firestore | null {
   if (cachedDb) return cachedDb;
   const app = getFirebaseApp();
   if (!app) return null;
-  cachedDb = getFirestore(app);
+  try {
+    cachedDb = initializeFirestore(app, {
+      experimentalAutoDetectLongPolling: true
+    });
+  } catch {
+    cachedDb = getFirestore(app);
+  }
   return cachedDb;
 }
 
