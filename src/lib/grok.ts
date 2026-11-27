@@ -140,8 +140,17 @@ export async function callGrokChat(params: {
   temperature?: number;
   jsonMode?: boolean;
 }): Promise<{ ok: boolean; content?: string; status: GrokStatus; error?: string }> {
-  const apiKey = getGrokApiKey();
-  if (!apiKey) {
+  const overrideKey = sanitizeKey(requestKeyStorage.getStore());
+  const envKey = sanitizeKey(process.env.GROK_API_KEY);
+  const validEnvKey = envKey && envKey !== 'your_grok_api_key_here' ? envKey : '';
+
+  // Ignore clearly invalid legacy grok_ browser overrides when a valid server env key exists
+  const primaryKey =
+    overrideKey && !(overrideKey.startsWith('grok_') && validEnvKey)
+      ? overrideKey
+      : validEnvKey;
+
+  if (!primaryKey) {
     return {
       ok: false,
       status: 'missing',
@@ -149,6 +158,29 @@ export async function callGrokChat(params: {
     };
   }
 
+  const firstAttempt = await executeChatWithKey(primaryKey, params);
+  if (
+    !firstAttempt.ok &&
+    firstAttempt.status === 'invalid_key' &&
+    overrideKey &&
+    validEnvKey &&
+    overrideKey !== validEnvKey
+  ) {
+    return executeChatWithKey(validEnvKey, params);
+  }
+  return firstAttempt;
+}
+
+async function executeChatWithKey(
+  apiKey: string,
+  params: {
+    systemPrompt: string;
+    userPrompt: string;
+    maxTokens?: number;
+    temperature?: number;
+    jsonMode?: boolean;
+  }
+): Promise<{ ok: boolean; content?: string; status: GrokStatus; error?: string }> {
   const { baseUrl, defaultModels, providerName } = resolveProvider(apiKey);
   const { models: liveModels, authError } = await discoverModels(baseUrl, apiKey);
 
