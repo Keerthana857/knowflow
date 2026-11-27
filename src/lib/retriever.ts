@@ -92,13 +92,16 @@ export function retrieveRelevantContext(
         });
       }
     } else {
-      candidates.push({
-        docId: doc.id,
-        docTitle: doc.title,
-        page: 1,
-        heading: 'Overview',
-        text: `${doc.abstract} Key finding: ${doc.keyStance}`
-      });
+      const fallbackParts = [doc.abstract?.trim(), doc.keyStance?.trim()].filter(Boolean);
+      if (fallbackParts.length > 0) {
+        candidates.push({
+          docId: doc.id,
+          docTitle: doc.title,
+          page: 1,
+          heading: 'Overview',
+          text: fallbackParts.join(' Key finding: ')
+        });
+      }
     }
   }
 
