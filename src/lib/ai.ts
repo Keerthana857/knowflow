@@ -509,7 +509,9 @@ function buildContextFallbackTutorReply(
 
   // Gather real sentences from ALL retrieved excerpts, filtering out upload placeholders
   const isPlaceholder = (txt: string) =>
-    /^(Saved PDF file|Ask questions or paste|Topic requested directly)/i.test(txt.trim());
+    /^(Saved PDF file|Ask questions or paste|Topic requested directly|Teach this topic clearly|Extracted .* of ")/i.test(
+      txt.trim()
+    );
 
   const allSentences = retrieved.excerpts
     .flatMap(ex =>
@@ -522,12 +524,16 @@ function buildContextFallbackTutorReply(
   const hasRealText = allSentences.length > 0 || Boolean(concept);
 
   if (!hasRealText) {
+    const isDirectTopic = topExcerpt?.docId === 'direct-topic';
     return {
       stage,
       stageTitle,
-      headline: `${docTitle.slice(0, 40)} — Needs Text or Live Grok Key`,
-      narrative:
-        'This PDF appears to contain scanned images without selectable text, and the Grok API key is not active yet. Paste a short excerpt or update GROK_API_KEY to get brief, accurate explanations and quizzes.',
+      headline: isDirectTopic
+        ? `${docTitle.slice(0, 40)} — Live Grok Key Needed`
+        : `${docTitle.slice(0, 40)} — Needs Text or Live Grok Key`,
+      narrative: isDirectTopic
+        ? 'No document is attached and your Grok API key is not active yet. Paste notes into Library, mention a saved file with @, or update GROK_API_KEY in .env.local / Vercel for live answers.'
+        : 'This PDF appears to contain scanned images without selectable text, and the Grok API key is not active yet. Paste a short excerpt or update GROK_API_KEY to get brief, accurate explanations and quizzes.',
       citations: retrieved.citations,
       usedGrok: false,
       aiError:
