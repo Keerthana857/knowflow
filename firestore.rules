@@ -1,0 +1,246 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model (KNOWFLOW)
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (matches Firebase Auth UID)
+    // Fields:
+    //   - creditSaverMode: bool (optional) - toggles low-credit AI mode
+    //   - audioSpeed: number (optional, 0.25..4.0) - TTS playback speed
+    //   - activeFolderId: string | null (optional, 1..128 chars) - active folder ID
+    //   - activeDocumentId: string | null (optional, 1..128 chars) - active doc ID
+    //   - email: string | null (optional, valid email, <= 254 chars) - user email
+    //   - displayName: string | null (optional, <= 120 chars) - user display name
+    //   - updatedAt: timestamp | ISO date string (required) - last update time
+    //
+    // Subcollection: users/{userId}/folders
+    // Document ID: {folderId}
+    // Fields:
+    //   - id: string (required, immutable, 1..128 chars) - folder identifier
+    //   - name: string (required, 1..120 chars) - folder display name
+    //   - createdAt: timestamp | ISO date string (required, immutable)
+    //
+    // Subcollection: users/{userId}/documents
+    // Document ID: {docId}
+    // Fields:
+    //   - id: string (required, immutable, 1..128 chars) - document identifier
+    //   - folderId: string (required, 1..128 chars) - parent folder identifier
+    //   - sourceType: string (optional, 'pdf' | 'pasted') - ingestion source type
+    //   - title: string (required, 1..300 chars) - document title
+    //   - authors: string (optional, <= 300 chars) - author list
+    //   - year: int (optional, 1000..2100) - publication year
+    //   - abstract: string (optional, <= 10000 chars) - document abstract
+    //   - pageCount: int (optional, 0..20000) - number of pages
+    //   - fileSize: string (optional, <= 64 chars) - human-readable file size
+    //   - uploadDate: timestamp | ISO date string (required, immutable)
+    //   - keyStance: string (optional, <= 2000 chars) - core takeaway/stance
+    //   - excerpts: list of maps (optional, <= 200 items) - parsed excerpts
+    //   - concepts: list of maps (optional, <= 200 items) - extracted concepts
+    //   - claims: list of maps (optional, <= 200 items) - extracted evidence claims
+    //
+    // Subcollection: users/{userId}/chats
+    // Document ID: {chatId}
+    // Fields:
+    //   - id: string (required, immutable, 1..128 chars) - chat identifier
+    //   - title: string (required, 1..300 chars) - chat title
+    //   - documentId: string | null (optional, 1..128 chars) - linked document ID
+    //   - folderId: string | null (optional, 1..128 chars) - linked folder ID
+    //   - activeStage: int (required, 1..5) - 5-stage tutor step
+    //   - messages: list of maps (required, <= 500 items) - chat message history
+    //   - updatedAt: timestamp | ISO date string (required) - last update time
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(data, fields) {
+      return data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(data, fields) {
+      return data.keys().hasOnly(fields);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string &&
+        val.size() >= minLen &&
+        val.size() <= maxLen;
+    }
+
+    function isValidIdString(val) {
+      return isValidString(val, 1, 128) &&
+        !val.matches(".*[/].*");
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.size() <= 254 &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidTimestampOrDate(val) {
+      return val is timestamp ||
+        (val is string &&
+         val.size() >= 10 &&
+         val.size() <= 40 &&
+         val.matches("^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?)?$"));
+    }
+
+    function isValidMapList(listVal, maxSize) {
+      return listVal is list &&
+        listVal.size() <= maxSize &&
+        (listVal.size() == 0 || (listVal[0] is map && listVal[listVal.size() - 1] is map));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(data, [
+          'creditSaverMode',
+          'audioSpeed',
+          'activeFolderId',
+          'activeDocumentId',
+          'email',
+          'displayName',
+          'updatedAt'
+        ]) &&
+        hasRequiredFields(data, ['updatedAt']) &&
+        (!('creditSaverMode' in data) || data.creditSaverMode is bool) &&
+        (!('audioSpeed' in data) || (data.audioSpeed is number && data.audioSpeed >= 0.25 && data.audioSpeed <= 4.0)) &&
+        (!('activeFolderId' in data) || data.activeFolderId == null || isValidIdString(data.activeFolderId)) &&
+        (!('activeDocumentId' in data) || data.activeDocumentId == null || isValidIdString(data.activeDocumentId)) &&
+        (!('email' in data) || data.email == null || isValidEmail(data.email)) &&
+        (!('displayName' in data) || data.displayName == null || isValidString(data.displayName, 0, 120)) &&
+        isValidTimestampOrDate(data.updatedAt);
+    }
+
+    function isValidFolder(data) {
+      return hasOnlyAllowedFields(data, ['id', 'name', 'createdAt']) &&
+        hasRequiredFields(data, ['id', 'name', 'createdAt']) &&
+        isValidIdString(data.id) &&
+        isValidString(data.name, 1, 120) &&
+        isValidTimestampOrDate(data.createdAt);
+    }
+
+    function isValidDocument(data) {
+      return hasOnlyAllowedFields(data, [
+          'id',
+          'folderId',
+          'sourceType',
+          'title',
+          'authors',
+          'year',
+          'abstract',
+          'pageCount',
+          'fileSize',
+          'uploadDate',
+          'keyStance',
+          'excerpts',
+          'concepts',
+          'claims'
+        ]) &&
+        hasRequiredFields(data, ['id', 'folderId', 'title', 'uploadDate']) &&
+        isValidIdString(data.id) &&
+        isValidIdString(data.folderId) &&
+        (!('sourceType' in data) || data.sourceType in ['pdf', 'pasted']) &&
+        isValidString(data.title, 1, 300) &&
+        (!('authors' in data) || isValidString(data.authors, 0, 300)) &&
+        (!('year' in data) || (data.year is int && data.year >= 1000 && data.year <= 2100)) &&
+        (!('abstract' in data) || isValidString(data.abstract, 0, 10000)) &&
+        (!('pageCount' in data) || (data.pageCount is int && data.pageCount >= 0 && data.pageCount <= 20000)) &&
+        (!('fileSize' in data) || isValidString(data.fileSize, 0, 64)) &&
+        isValidTimestampOrDate(data.uploadDate) &&
+        (!('keyStance' in data) || isValidString(data.keyStance, 0, 2000)) &&
+        (!('excerpts' in data) || isValidMapList(data.excerpts, 200)) &&
+        (!('concepts' in data) || isValidMapList(data.concepts, 200)) &&
+        (!('claims' in data) || isValidMapList(data.claims, 200));
+    }
+
+    function isValidChat(data) {
+      return hasOnlyAllowedFields(data, [
+          'id',
+          'title',
+          'documentId',
+          'folderId',
+          'activeStage',
+          'messages',
+          'updatedAt'
+        ]) &&
+        hasRequiredFields(data, ['id', 'title', 'activeStage', 'messages', 'updatedAt']) &&
+        isValidIdString(data.id) &&
+        isValidString(data.title, 1, 300) &&
+        (!('documentId' in data) || data.documentId == null || isValidIdString(data.documentId)) &&
+        (!('folderId' in data) || data.folderId == null || isValidIdString(data.folderId)) &&
+        data.activeStage is int && data.activeStage >= 1 && data.activeStage <= 5 &&
+        isValidMapList(data.messages, 500) &&
+        isValidTimestampOrDate(data.updatedAt);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+      allow delete: if isOwner(userId);
+
+      match /folders/{folderId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidFolder(request.resource.data);
+        allow update: if isOwner(userId) &&
+          isValidFolder(request.resource.data) &&
+          areImmutableFieldsUnchanged(['id', 'createdAt']);
+        allow delete: if isOwner(userId);
+      }
+
+      match /documents/{docId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidDocument(request.resource.data);
+        allow update: if isOwner(userId) &&
+          isValidDocument(request.resource.data) &&
+          areImmutableFieldsUnchanged(['id', 'uploadDate']);
+        allow delete: if isOwner(userId);
+      }
+
+      match /chats/{chatId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidChat(request.resource.data);
+        allow update: if isOwner(userId) &&
+          isValidChat(request.resource.data) &&
+          areImmutableFieldsUnchanged(['id']);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // ===============================================================
+    // Default Deny
+    // ===============================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
