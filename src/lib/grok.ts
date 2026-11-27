@@ -109,17 +109,18 @@ async function discoverModels(
           .filter(
             (id: string) =>
               id &&
-              !/image|imagine|video|audio|voice|whisper|tts|guard|embed/i.test(id)
+              !/image|imagine|video|audio|voice|whisper|tts|guard|embed|safeguard|prompt-guard/i.test(id)
           )
       : [];
 
-    // Rank fast / current chat models first
+    // Rank fast / current chat models first (and avoid reasoning-only models for quick verify)
     list.sort((a, b) => {
       const score = (id: string) => {
-        if (id === 'latest') return 100;
-        if (/grok-4\.7|grok-4-fast|grok-3-mini/i.test(id)) return 90;
-        if (/grok-4|grok-3|llama-3\.3/i.test(id)) return 80;
-        return 10;
+        if (id === 'llama-3.3-70b-versatile' || id === 'latest') return 100;
+        if (id === 'llama-3.1-8b-instant' || /grok-4\.7|grok-4-fast|grok-3-mini/i.test(id)) return 90;
+        if (/grok-4|grok-3|llama-3/i.test(id)) return 80;
+        if (/reason|r1|qwq|compound|gpt-oss/i.test(id)) return 5;
+        return 20;
       };
       return score(b) - score(a);
     });
@@ -232,7 +233,11 @@ async function executeChatWithKey(
       if (res.ok) {
         const data = await res.json();
         const content = data?.choices?.[0]?.message?.content;
-        if (!content) {
+        if (!content || !String(content).trim()) {
+          if (i < candidateModels.length - 1) {
+            lastError = `${model}: Empty response from ${providerName}.`;
+            continue;
+          }
           return { ok: false, status: 'network_error', error: `Empty response from ${providerName}.` };
         }
         return { ok: true, status: 'ok', content: String(content).trim() };
@@ -323,9 +328,9 @@ export async function callGrokJson<T>(params: {
 
 export async function verifyGrokApiKey(): Promise<{ ok: boolean; status: GrokStatus; message: string }> {
   const res = await callGrokChat({
-    systemPrompt: 'Reply OK.',
+    systemPrompt: 'Reply with OK.',
     userPrompt: 'Ping',
-    maxTokens: 16
+    maxTokens: 64
   });
   if (res.ok) {
     return { ok: true, status: 'ok', message: 'Connected & Working' };
