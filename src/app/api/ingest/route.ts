@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { parsePdfBuffer } from '@/lib/pdfExtractor';
 import { extractConceptsAndClaimsFromPdf } from '@/lib/ai';
+import { runWithGrokKey } from '@/lib/grok';
 import { DocumentSource, DocumentExcerpt } from '@/types';
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  return runWithGrokKey(request.headers.get('x-grok-key'), async () => {
   try {
     const contentType = request.headers.get('content-type') || '';
     const newDocuments: DocumentSource[] = [];
@@ -144,4 +146,5 @@ export async function POST(request: Request) {
     console.error('Error during ingestion:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
+  });
 }

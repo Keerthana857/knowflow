@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getWorkspace, updateConceptMastery } from '@/lib/storage';
 import { gradeShortAnswerQuestion } from '@/lib/ai';
+import { runWithGrokKey } from '@/lib/grok';
 
 export async function POST(request: Request) {
+  return runWithGrokKey(request.headers.get('x-grok-key'), async () => {
   try {
     const body = await request.json();
     const { conceptId, answers } = body as {
@@ -79,4 +81,5 @@ export async function POST(request: Request) {
     console.error('Error during evaluation:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
+  });
 }

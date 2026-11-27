@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { WorkspaceState, SpacedQuestion } from '../../types';
+import { getGrokHeaders } from '../../lib/clientHeaders';
 import {
   Menu,
   CheckCircle2,
@@ -103,7 +104,7 @@ export default function QuizView({
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getGrokHeaders() },
         signal: controller.signal,
         body: JSON.stringify({
           stage: 5,

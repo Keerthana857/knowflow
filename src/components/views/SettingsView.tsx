@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { WorkspaceState } from '../../types';
-import { Menu, Trash2, Sparkles, Volume2, Zap, Database, LogOut, RefreshCw } from 'lucide-react';
+import { getGrokHeaders, getSavedGrokKey, saveCustomGrokKey } from '../../lib/clientHeaders';
+import { Menu, Trash2, Sparkles, Volume2, Zap, Database, LogOut, RefreshCw, KeyRound } from 'lucide-react';
 
 interface SettingsViewProps {
   workspace: WorkspaceState;
@@ -34,11 +35,22 @@ export default function SettingsView({
     message: string;
   } | null>(null);
   const [isTestingGrok, setIsTestingGrok] = useState(false);
+  const [customKey, setCustomKey] = useState('');
 
-  const checkGrokLive = async () => {
+  useEffect(() => {
+    setCustomKey(getSavedGrokKey());
+  }, []);
+
+  const checkGrokLive = async (overrideKey?: string) => {
     setIsTestingGrok(true);
     try {
-      const res = await fetch('/api/workspace?verifyGrok=1');
+      const headers =
+        overrideKey !== undefined
+          ? overrideKey.trim()
+            ? { 'x-grok-key': overrideKey.trim() }
+            : {}
+          : getGrokHeaders();
+      const res = await fetch('/api/workspace?verifyGrok=1', { headers });
       const data = await res.json();
       if (data.grokHealth) setGrokHealth(data.grokHealth);
     } catch {
@@ -49,7 +61,7 @@ export default function SettingsView({
   };
 
   useEffect(() => {
-    if (grokConfigured) checkGrokLive();
+    if (grokConfigured || getSavedGrokKey()) checkGrokLive();
   }, [grokConfigured]);
 
   return (
@@ -117,13 +129,13 @@ export default function SettingsView({
                 <Sparkles size={20} className="text-[#635BDB]" />
                 <div>
                   <div className="text-base font-semibold text-[#0F172A]">Grok AI Engine</div>
-                  <div className="text-sm text-[#64748B]">Uses GROK_API_KEY</div>
+                  <div className="text-sm text-[#64748B]">Uses GROK_API_KEY or your custom key below</div>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={checkGrokLive}
+                  onClick={() => checkGrokLive()}
                   disabled={isTestingGrok}
                   className="px-3 py-1 rounded-full border border-[#E2E8F0] hover:bg-[#F8FAFF] text-xs font-medium text-[#475569] flex items-center gap-1"
                 >
@@ -143,7 +155,7 @@ export default function SettingsView({
                       : grokHealth.status === 'out_of_credits'
                       ? 'Out of Credits'
                       : 'Invalid Key'
-                    : grokConfigured
+                    : grokConfigured || customKey
                     ? 'Checking...'
                     : 'Not Set'}
                 </span>
@@ -155,6 +167,42 @@ export default function SettingsView({
                 {grokHealth.message}
               </div>
             )}
+
+            <div className="pt-1 flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <KeyRound size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+                <input
+                  type="password"
+                  value={customKey}
+                  onChange={(e) => setCustomKey(e.target.value)}
+                  placeholder="Paste xai-... or gsk_... key (saved in browser)"
+                  className="w-full text-xs pl-9 pr-3 py-2 rounded-full border border-[#E2E8F0] focus:border-[#635BDB] focus:outline-hidden bg-[#F8FAFF]"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  saveCustomGrokKey(customKey);
+                  checkGrokLive(customKey);
+                }}
+                className="px-4 py-2 rounded-full bg-gradient-to-r from-[#635BDB] to-[#7C6FF6] text-white text-xs font-semibold hover:opacity-95 transition shrink-0"
+              >
+                Save & Test
+              </button>
+              {customKey && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomKey('');
+                    saveCustomGrokKey('');
+                    checkGrokLive('');
+                  }}
+                  className="px-3.5 py-2 rounded-full border border-[#E2E8F0] text-xs text-[#64748B] hover:text-[#0F172A] shrink-0"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="bg-white border border-[#E6EAF5] rounded-3xl p-6 flex items-center justify-between gap-4 shadow-2xs">

@@ -9,6 +9,7 @@ import {
 } from '../../types';
 import { ActiveSection } from '../Sidebar';
 import VisualFlowCard from '../VisualFlowCard';
+import { getGrokHeaders } from '../../lib/clientHeaders';
 import {
   Plus,
   Mic,
@@ -114,12 +115,12 @@ export default function AskAIView({
     };
   }, []);
 
-  const activeDoc =
-    workspace.documents.find(d => d.id === workspace.activeDocumentId) ||
-    workspace.documents[0];
-  const activeFolder =
-    workspace.folders.find(f => f.id === workspace.activeFolderId) ||
-    workspace.folders[0];
+  const activeDoc = workspace.activeDocumentId
+    ? workspace.documents.find(d => d.id === workspace.activeDocumentId)
+    : undefined;
+  const activeFolder = workspace.activeFolderId
+    ? workspace.folders.find(f => f.id === workspace.activeFolderId)
+    : undefined;
 
   const handleSpeak = (msgId: string, text: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
@@ -218,7 +219,7 @@ export default function AskAIView({
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getGrokHeaders() },
         signal: controller.signal,
         body: JSON.stringify({
           message: cleanPrompt || `Teach Stage ${stageToRun}`,
@@ -343,64 +344,14 @@ export default function AskAIView({
               Visual Ask
             </button>
           </div>
-
-          {/* Active Folder/Document Context Picker */}
-          <div className="flex items-center gap-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-full px-3.5 py-1.5 text-sm max-w-[280px] sm:max-w-xs">
-            <FolderOpen size={15} className="text-[#635BDB] shrink-0" />
-            {workspace.documents.length > 0 ? (
-              <select
-                value={activeDoc?.id || ''}
-                onChange={(e) => {
-                  const doc = workspace.documents.find(d => d.id === e.target.value);
-                  onSelectContext(doc?.folderId || null, doc?.id || null);
-                }}
-                className="bg-transparent text-sm font-medium text-[#0F172A] truncate focus:outline-hidden cursor-pointer w-full"
-                title="Select context document from Library"
-              >
-                {workspace.documents.map(doc => {
-                  const folder = workspace.folders.find(f => f.id === doc.folderId);
-                  return (
-                    <option key={doc.id} value={doc.id}>
-                      {folder ? `${folder.name} / ` : ''}
-                      {doc.title}
-                    </option>
-                  );
-                })}
-              </select>
-            ) : (
-              <span className="text-sm text-[#64748B] truncate">No document yet</span>
-            )}
-          </div>
         </div>
 
-        {/* Right Stage Stepper */}
+        {/* Right Session End Button */}
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => activeStage > 1 && handleStageChange((activeStage - 1) as TutorStage)}
-            disabled={activeStage === 1 || isLoading}
-            className="px-3.5 py-1.5 rounded-full border border-[#E2E8F0] text-sm font-medium text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-35 transition flex items-center gap-1"
-          >
-            <ChevronLeft size={15} />
-            <span className="hidden sm:inline">Prev</span>
-          </button>
-
-          <span className="text-sm font-semibold text-[#475569] px-1.5 tabular-nums">
-            {activeStage} / 5
-          </span>
-
-          <button
-            onClick={() => activeStage < 5 && handleStageChange((activeStage + 1) as TutorStage)}
-            disabled={activeStage === 5 || isLoading}
-            className="px-4 py-1.5 rounded-full bg-[#0F172A] hover:bg-[#1E293B] text-white text-sm font-medium disabled:opacity-35 transition flex items-center gap-1"
-          >
-            <span className="hidden sm:inline">Next</span>
-            <ChevronRight size={15} />
-          </button>
-
           {messages.length > 0 && (
             <button
               onClick={handleEndSession}
-              className="px-3.5 py-1.5 rounded-full border border-[#FEE2E2] bg-[#FEF2F2] hover:bg-[#FEE2E2] text-[#DC2626] text-sm font-medium transition"
+              className="px-4 py-1.5 rounded-full border border-[#FEE2E2] bg-[#FEF2F2] hover:bg-[#FEE2E2] text-[#DC2626] text-sm font-medium transition"
               title="End current chat session"
             >
               End
@@ -604,8 +555,17 @@ export default function AskAIView({
 
                   {/* Grok API Key / Credit Warning if fallback used */}
                   {t?.aiError && (
-                    <div className="px-4 py-2.5 rounded-2xl bg-[#FFFBEB] border border-[#FEF3C7] text-xs text-[#92400E]">
-                      <strong>Grok Notice:</strong> {t.aiError}
+                    <div className="px-4 py-2.5 rounded-2xl bg-[#FFFBEB] border border-[#FEF3C7] text-xs text-[#92400E] flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        <strong>Grok Notice:</strong> {t.aiError}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onNavigateSection('settings')}
+                        className="font-semibold text-[#635BDB] hover:underline shrink-0"
+                      >
+                        Open Settings →
+                      </button>
                     </div>
                   )}
 
@@ -976,17 +936,20 @@ export default function AskAIView({
             </div>
           )}
 
-          {/* Active @ Context Pill above/inside composer */}
-          {activeDoc && (
+          {/* Active @ Context Pill above composer */}
+          {(activeDoc || activeFolder) && (
             <div className="mb-2 flex items-center gap-2 px-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EEF2FF] border border-[#C7D2FE] text-xs font-semibold text-[#4F46E5]">
+              <span className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 rounded-full bg-[#EEF2FF] border border-[#C7D2FE] text-xs font-semibold text-[#4F46E5]">
                 <AtSign size={12} />
-                <span className="max-w-[260px] truncate">{activeDoc.title}</span>
+                <span className="max-w-[260px] truncate">
+                  {activeDoc ? activeDoc.title : `Folder: ${activeFolder?.name}`}
+                </span>
                 <button
                   type="button"
-                  onClick={() => onSelectContext(workspace.activeFolderId, null)}
-                  className="hover:text-[#0F172A] ml-0.5"
-                  title="Clear active file context"
+                  onClick={() => onSelectContext(null, null)}
+                  className="p-1 rounded-full hover:bg-[#C7D2FE]/60 hover:text-[#0F172A] transition"
+                  title="Clear active file / folder context"
+                  aria-label="Clear active context"
                 >
                   <X size={12} />
                 </button>
@@ -1088,7 +1051,7 @@ export default function AskAIView({
           >
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-[#0F172A]">
-                Paste Study Notes into Library ({activeFolder?.name})
+                Paste Study Notes into Library ({activeFolder?.name || 'Library'})
               </h3>
               <button
                 type="button"

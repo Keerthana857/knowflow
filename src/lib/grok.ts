@@ -1,17 +1,41 @@
+import { AsyncLocalStorage } from 'async_hooks';
+
 /**
- * Grok (xAI) API Client
- * Uses GROK_API_KEY exclusively (no Gemini or OpenAI).
- * Reports exact invalid_key / out_of_credits status so the user knows immediately when to replace the key.
+ * Grok (xAI) / Groq OpenAI-compatible API Client
+ * Uses GROK_API_KEY from env or per-request x-grok-key override (from Settings).
  */
 
 export type GrokStatus = 'ok' | 'missing' | 'invalid_key' | 'out_of_credits' | 'network_error';
 
+const requestKeyStorage = new AsyncLocalStorage<string | undefined>();
+
+export function runWithGrokKey<T>(headerKey: string | null | undefined, fn: () => Promise<T>): Promise<T> {
+  const cleaned = (headerKey || '').trim().replace(/^['"]|['"]$/g, '');
+  return requestKeyStorage.run(cleaned || undefined, fn);
+}
+
 export function getGrokApiKey(): string | null {
-  const raw = process.env.GROK_API_KEY;
+  const override = requestKeyStorage.getStore();
+  const raw = override || process.env.GROK_API_KEY;
   if (!raw) return null;
   const cleaned = raw.trim().replace(/^['"]|['"]$/g, '');
   if (!cleaned || cleaned === 'your_grok_api_key_here') return null;
   return cleaned;
+}
+
+function resolveProvider(apiKey: string): { endpoint: string; models: string[]; providerName: string } {
+  if (apiKey.startsWith('gsk_')) {
+    return {
+      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+      models: [process.env.GROK_MODEL || 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
+      providerName: 'Groq'
+    };
+  }
+  return {
+    endpoint: process.env.GROK_API_URL || 'https://api.x.ai/v1/chat/completions',
+    models: [process.env.GROK_MODEL || 'grok-3-mini', 'grok-3-latest', 'grok-2-latest'],
+    providerName: 'Grok (xAI)'
+  };
 }
 
 export async function callGrokChat(params: {
@@ -26,46 +50,62 @@ export async function callGrokChat(params: {
     return {
       ok: false,
       status: 'missing',
-      error: 'GROK_API_KEY is not set in .env.local / Vercel Environment Variables.'
+      error: 'GROK_API_KEY is not set. Add an xai-... key in Settings or .env.local / Vercel.'
     };
   }
 
-  const endpoint = process.env.GROK_API_URL || 'https://api.x.ai/v1/chat/completions';
-  const model = process.env.GROK_MODEL || 'grok-3-mini';
+  const { endpoint, models, providerName } = resolveProvider(apiKey);
 
   try {
-    const body: Record<string, unknown> = {
-      model,
-      messages: [
-        { role: 'system', content: params.systemPrompt },
-        { role: 'user', content: params.userPrompt }
-      ],
-      max_tokens: params.maxTokens ?? 700,
-      temperature: params.temperature ?? 0.3
-    };
+    let lastError = 'Unknown error';
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i];
+      const body: Record<string, unknown> = {
+        model,
+        messages: [
+          { role: 'system', content: params.systemPrompt },
+          { role: 'user', content: params.userPrompt }
+        ],
+        max_tokens: params.maxTokens ?? 700,
+        temperature: params.temperature ?? 0.3
+      };
 
-    if (params.jsonMode) {
-      body.response_format = { type: 'json_object' };
-    }
+      if (params.jsonMode) {
+        body.response_format = { type: 'json_object' };
+      }
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(body)
-    });
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(body)
+      });
 
-    if (!res.ok) {
+      if (res.ok) {
+        const data = await res.json();
+        const content = data?.choices?.[0]?.message?.content;
+        if (!content) {
+          return { ok: false, status: 'network_error', error: `Empty response from ${providerName}.` };
+        }
+        return { ok: true, status: 'ok', content: String(content).trim() };
+      }
+
       const errText = await res.text().catch(() => '');
       const lower = errText.toLowerCase();
+
+      // If this specific model isn't found on the account, try next fallback model
+      if (res.status === 404 && lower.includes('model') && i < models.length - 1) {
+        lastError = errText;
+        continue;
+      }
 
       if (res.status === 402 || res.status === 429 || lower.includes('credit') || lower.includes('quota') || lower.includes('limit')) {
         return {
           ok: false,
           status: 'out_of_credits',
-          error: `Grok API credits exhausted or rate-limited (HTTP ${res.status}). Add a new GROK_API_KEY.`
+          error: `${providerName} credits exhausted or rate-limited (HTTP ${res.status}). Paste a new key in Settings.`
         };
       }
 
@@ -73,24 +113,15 @@ export async function callGrokChat(params: {
         return {
           ok: false,
           status: 'invalid_key',
-          error: `Grok API key rejected (HTTP ${res.status}). Please replace GROK_API_KEY with a valid xai-... key from console.x.ai.`
+          error: `${providerName} key rejected (HTTP ${res.status}). Paste a valid xai-... key from console.x.ai (or gsk_... Groq key) in Settings.`
         };
       }
 
-      return {
-        ok: false,
-        status: 'network_error',
-        error: `Grok API HTTP ${res.status}: ${errText.slice(0, 140)}`
-      };
+      lastError = `${providerName} HTTP ${res.status}: ${errText.slice(0, 140)}`;
+      break;
     }
 
-    const data = await res.json();
-    const content = data?.choices?.[0]?.message?.content;
-    if (!content) {
-      return { ok: false, status: 'network_error', error: 'Empty response from Grok.' };
-    }
-
-    return { ok: true, status: 'ok', content: String(content).trim() };
+    return { ok: false, status: 'network_error', error: lastError };
   } catch (err: any) {
     return {
       ok: false,

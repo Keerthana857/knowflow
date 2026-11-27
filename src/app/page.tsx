@@ -198,23 +198,23 @@ export default function KnowflowApp() {
 
   const handleSelectContext = async (folderId: string | null, documentId: string | null) => {
     setWorkspace(prev => {
-      const nextFolder = folderId ?? prev.activeFolderId;
-      const nextDoc = documentId !== undefined ? documentId : prev.activeDocumentId;
+      const nextFolder = folderId;
+      const nextDoc = documentId;
       const matchingConcept = nextDoc
         ? prev.concepts.find(c => c.sourceDocumentId === nextDoc)
-        : prev.concepts[0];
+        : undefined;
       return {
         ...prev,
         activeFolderId: nextFolder,
         activeDocumentId: nextDoc,
-        activeConceptId: matchingConcept?.id || prev.activeConceptId
+        activeConceptId: matchingConcept?.id || null
       };
     });
 
     if (user) {
       await saveUserSettingsToFirestore(user.uid, {
-        activeFolderId: folderId ?? workspace.activeFolderId,
-        activeDocumentId: documentId !== undefined ? documentId : workspace.activeDocumentId
+        activeFolderId: folderId,
+        activeDocumentId: documentId
       }).catch(console.error);
     }
   };
@@ -321,7 +321,7 @@ export default function KnowflowApp() {
         concepts: prev.concepts.filter(c => c.sourceDocumentId !== documentId),
         claims: prev.claims.filter(cl => cl.sourcePaperId !== documentId),
         activeDocumentId:
-          prev.activeDocumentId === documentId ? remainingDocs[0]?.id || null : prev.activeDocumentId
+          prev.activeDocumentId === documentId ? null : prev.activeDocumentId
       };
     });
 
