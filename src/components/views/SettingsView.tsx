@@ -50,7 +50,7 @@ export default function SettingsView({
             ? { 'x-grok-key': overrideKey.trim() }
             : {}
           : getGrokHeaders();
-      const res = await fetch('/api/workspace?verifyGrok=1', { headers });
+      const res = await fetch('/api/workspace?verifyGrok=1', { headers, cache: 'no-store' });
       const data = await res.json();
       if (data.grokHealth) setGrokHealth(data.grokHealth);
     } catch {

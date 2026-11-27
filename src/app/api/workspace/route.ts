@@ -3,6 +3,8 @@ import { EMPTY_WORKSPACE } from '@/data/defaultBenchmark';
 import { getGrokApiKey, runWithGrokKey, verifyGrokApiKey } from '@/lib/grok';
 import { isFirebaseConfigured } from '@/lib/firebaseClient';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   return runWithGrokKey(request.headers.get('x-grok-key'), async () => {
     const { searchParams } = new URL(request.url);
